@@ -1,0 +1,16 @@
+# Data / large external folders
+venv*/
+chaoyi_data08/
+
+# Memory bank task notes (private)
+memory-bank/tasks/
+
+# MATLAB autosave and temp files
+*.asv
+*.m~
+*.mlx~
+*.fig~
+
+# OS junk
+.DS_Store
+Thumbs.db
