@@ -98,8 +98,10 @@ for isub = 1:numel(subDataPath)
         % -----------------------------------------------------------------
         % 1. Load data
         % -----------------------------------------------------------------
+        tic
         [PDI, anatomic, Transf] = fonduta.io.datapath.load_session( ...
             subDataPath{isub}, subAnatPath{isub});
+        toc    
 
         % -----------------------------------------------------------------
         % 2. Running trial detection & session inclusion check
@@ -134,7 +136,9 @@ for isub = 1:numel(subDataPath)
         % -----------------------------------------------------------------
         stimDesign = fn.build_stimulus_design(PDI, runningIdx);
         behDesign  = fn.build_behavior_regressors(PDI, hrf_kernel, speedThresh);
+        tic
         pc1Signals = fonduta.utils.extract_pc1_signals(PDI, bmask, nonBrainMask);
+        toc
 
         % Unpack into short named variables for readable model specification
         stim_all        = stimDesign.stimVisual + stimDesign.stimVisualRunning;
@@ -229,11 +233,12 @@ for isub = 1:numel(subDataPath)
         PDI_steady       = PDI.PDI(:, :, includeSteady);
         M8_pred_steady   = hrf(stim_stationary(includeSteady));
 
-        disp('Done fitting models')
-
         all_results.M8_SteadyVisual = fonduta.glm.ols( ...
             'M8_SteadyVisual', PDI_steady, bmask, ...
             M8_pred_steady, {'stim_stationary_hrf'});
+
+        disp('Done fitting models')
+
 
         % Pearson correlation reference maps (need raw [T x V] matrices)
         Y        = fonduta.glm.prepare_data_matrix(PDI.PDI,    bmask);

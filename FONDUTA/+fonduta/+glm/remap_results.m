@@ -16,6 +16,7 @@ function remapped = remap_results(glm_est, bmask)
 %                .betas  [p+1 x nx x ny]  beta maps (last slice = intercept)
 %                .eta2   [p   x nx x ny]  partial eta² maps per predictor
 %                .R2     [nx  x ny]        global R² map
+%                .Xmodel [T x p]           z-scored design matrix (no intercept), copied from glm_est
 %                .predictor_labels         copied from glm_est
 %                .model_name               copied from glm_est
 %
@@ -28,6 +29,7 @@ remapped                  = struct();
 remapped.betas            = remap_array(glm_est.betas, maskIdx, nx, ny);
 remapped.eta2             = remap_array(glm_est.eta2,  maskIdx, nx, ny);
 remapped.R2               = squeeze(remap_array(glm_est.R2, maskIdx, nx, ny));
+remapped.Xmodel           = glm_est.Xmodel;   % [T x p] z-scored design matrix, passed through as-is
 remapped.predictor_labels = glm_est.predictor_labels;
 remapped.model_name       = glm_est.model_name;
 

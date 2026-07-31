@@ -1,12 +1,13 @@
-function view_glmfit(resultFile)
-% fonduta.viz.view_glmfit  Interactive GLM results viewer on Allen Atlas.
+function view_glm(resultFile)
+% fonduta.viz.view_glm  Interactive GLM viewer: brain slice + design matrix.
 %
-% Displays eta2 maps overlaid on the Allen Atlas histology registered to
-% subject space. Left column: model/predictor selection, eta2 threshold
-% slider, and clicked-region label.
+% Three-column layout:
+%   Left   — model/predictor selection, η² threshold slider, region label
+%   Middle — η² map overlaid on Allen Atlas histology (subject space)
+%   Right  — design matrix (Xmodel columns) for the selected model
 %
 % Usage:
-%   fonduta.viz.view_glmfit('path/to/GLMSes33.mat')
+%   fonduta.viz.view_glm('path/to/glm_run-142136.mat')
 
 %% ---- Load results ----
 tmp = load(resultFile);
@@ -38,15 +39,14 @@ subRegions = flipud(subRegions);
 subHisto = subHisto / (max(subHisto(:)) + eps);
 
 % Region borders — exclude ID 0 (no label) and ID 1 (background root)
-% to avoid horizontal lines spanning the image edges.
 se           = strel('diamond', 1);
 subReg_named = subRegions;
-subReg_named(subReg_named <= 1) = 0;   % zero out IDs 0 and 1
+subReg_named(subReg_named <= 1) = 0;
 borders = (imdilate(subReg_named, se) ~= imerode(subReg_named, se)) & ...
           (subReg_named > 0) & ...
           (imerode(subReg_named, se) > 0);
 
-[nr, nc] = size(subRegions);   % for click bounds check
+[nr, nc] = size(subRegions);
 
 %% ---- Model / predictor info ----
 modelNames  = fieldnames(res.models);
@@ -55,48 +55,52 @@ curModel    = 1;
 curPred     = 1;
 lbModel     = [];
 lbPred      = [];
-eta2Thresh  = 0.05;   % default threshold
+eta2Thresh  = 0.05;
 
-%% ---- Build figure ----
-fig = figure('Name', 'GLM on Allen Atlas', 'NumberTitle', 'off', ...
-    'Color', [1 1 1], 'Position', [60 60 1200 740]);
+%% ---- Build figure (wider: 1700 x 740) ----
+fig = figure('Name', 'GLM viewer', 'NumberTitle', 'off', ...
+    'Color', [1 1 1], 'Position', [60 60 1700 740]);
 
-% ---- Left column: model list ----
+% =========================================================
+%  LEFT COLUMN  (0–18%)
+% =========================================================
+
+% ---- Model list ----
 pModel = uipanel(fig, 'Title', 'Model', ...
-    'ForegroundColor', [1 0 0], 'BackgroundColor', 'white' , ...
+    'ForegroundColor', [1 0 0], 'BackgroundColor', 'white', ...
     'FontSize', 14, 'FontWeight', 'bold', ...
-    'Units', 'normalized', 'Position', [0.01 0.50 0.22 0.49]);
+    'Units', 'normalized', 'Position', [0.01 0.50 0.155 0.49]);
 
 lbModel = uicontrol(pModel, 'Style', 'listbox', ...
     'String', strrep(modelNames, '_', ' '), ...
     'Value', 1, ...
     'Units', 'normalized', 'Position', [0.02 0.02 0.96 0.96], ...
-    'BackgroundColor', 'white' , 'ForegroundColor', 'w', ...
+    'BackgroundColor', 'white', 'ForegroundColor', 'w', ...
     'FontSize', 14, ...
     'Callback', @(src, ~) onModelChange(src.Value));
 
-% ---- Left column: predictor list ----
+% ---- Predictor list ----
 pPred = uipanel(fig, 'Title', 'Predictor', ...
     'ForegroundColor', 'w', 'BackgroundColor', 'white', ...
     'FontSize', 14, 'FontWeight', 'bold', ...
-    'Units', 'normalized', 'Position', [0.01 0.28 0.22 0.20]);
+    'Units', 'normalized', 'Position', [0.01 0.28 0.155 0.20]);
 
 lbPred = uicontrol(pPred, 'Style', 'listbox', ...
     'String', {}, 'Value', 1, ...
     'Units', 'normalized', 'Position', [0.02 0.02 0.96 0.96], ...
-    'BackgroundColor', 'white' , 'ForegroundColor', 'w', ...
+    'BackgroundColor', 'white', 'ForegroundColor', 'w', ...
     'FontSize', 12, ...
     'Callback', @(src, ~) onPredChange(src.Value));
 
-% ---- Left column: eta2 threshold slider ----
+% ---- η² threshold slider ----
 pThresh = uipanel(fig, 'Title', 'η² threshold', ...
-    'ForegroundColor', 'w', 'BackgroundColor', [1 1 1] , ...
+    'ForegroundColor', 'w', 'BackgroundColor', [1 1 1], ...
     'FontSize', 12, 'FontWeight', 'bold', ...
-    'Units', 'normalized', 'Position', [0.01 0.12 0.22 0.13]);
+    'Units', 'normalized', 'Position', [0.01 0.12 0.155 0.13]);
 
 sliderThresh = uicontrol(pThresh, 'Style', 'slider', ...
     'Min', 0, 'Max', 0.5, 'Value', eta2Thresh, ...
-    'SliderStep', [0.01/0.5, 0.05/0.5], ...   % 0.01 minor, 0.05 major
+    'SliderStep', [0.01/0.5, 0.05/0.5], ...
     'Units', 'normalized', 'Position', [0.04 0.15 0.70 0.50], ...
     'BackgroundColor', [1 1 1], ...
     'Callback', @onThreshChange);
@@ -104,24 +108,41 @@ sliderThresh = uicontrol(pThresh, 'Style', 'slider', ...
 txtThresh = uicontrol(pThresh, 'Style', 'text', ...
     'String', sprintf('%.2f', eta2Thresh), ...
     'Units', 'normalized', 'Position', [0.76 0.10 0.22 0.60], ...
-    'BackgroundColor', [1 1 1] , 'ForegroundColor', [0 0 0], ...
+    'BackgroundColor', [1 1 1], 'ForegroundColor', [0 0 0], ...
     'FontSize', 12, 'HorizontalAlignment', 'center');
 
-% ---- Left column: region label ----
+% ---- Region label ----
 txtRegion = uicontrol(fig, 'Style', 'text', ...
     'String', 'Click on a region to identify it', ...
-    'Units', 'normalized', 'Position', [0.01 0.01 0.22 0.10], ...
+    'Units', 'normalized', 'Position', [0.01 0.01 0.155 0.10], ...
     'BackgroundColor', [1 1 1], 'ForegroundColor', [0 0 0], ...
     'FontSize', 12, 'HorizontalAlignment', 'left');
 
-% ---- Right: image axes ----
-ax = axes(fig, 'Position', [0.25 0.05 0.65 0.90], ...
+% =========================================================
+%  MIDDLE COLUMN (19–64%): brain slice + vertical colorbar
+% =========================================================
+ax = axes(fig, 'Position', [0.19 0.05 0.42 0.90], ...
     'Color', 'k', 'XTick', [], 'YTick', []);
 colormap(ax, hot(256));
 
 cb = colorbar(ax, 'Color', 'w', 'Location', 'eastoutside');
 cb.Label.String = 'eta2';
 cb.Label.Color  = 'w';
+
+% =========================================================
+%  RIGHT COLUMN (65–98%): design matrix — 1/3 of figure width
+% =========================================================
+pDesign = uipanel(fig, 'Title', 'Design matrix', ...
+    'ForegroundColor', 'k', 'BackgroundColor', 'w', ...
+    'FontSize', 12, 'FontWeight', 'bold', ...
+    'Units', 'normalized', 'Position', [0.65 0.01 0.34 0.98]);
+
+% Formula text widget at top of design panel (updated on model change)
+txtFormula = uicontrol(pDesign, 'Style', 'text', ...
+    'Units', 'normalized', 'Position', [0.01 0.94 0.98 0.05], ...
+    'BackgroundColor', 'w', 'ForegroundColor', [0.2 0.2 0.2], ...
+    'FontSize', 12, ...
+    'HorizontalAlignment', 'left', 'String', '');
 
 set(fig, 'WindowButtonDownFcn', @onAxesClick);
 
@@ -141,7 +162,9 @@ onModelChange(1);
         labels = strrep(mdata.predictor_labels(1:end-1), '_', ' ');
         lbPred.String = labels;
         lbPred.Value  = 1;
+
         updateDisplay();
+        updateDesignMatrix();
     end
 
     function onPredChange(idx)
@@ -155,43 +178,31 @@ onModelChange(1);
         updateDisplay();
     end
 
+    % ----------------------------------------------------------
+    %  updateDisplay — redraws the brain-slice axes (middle col)
+    % ----------------------------------------------------------
     function updateDisplay()
         mdata   = res.models.(modelNames{curModel});
         eta2Map = squeeze(double(mdata.eta2(curPred, :, :))) .* bmask;
 
-        % Flip to match orientation
         eta2Map = flipud(eta2Map);
 
-        % Apply threshold: hide voxels below threshold (NaN → transparent)
         betaDisplay = eta2Map;
         betaDisplay(betaDisplay < eta2Thresh) = NaN;
 
-        % Prepare layers (all [nr x nc])
         histoRGB  = cat(3, subHisto, subHisto, subHisto);
-        borderRGB = zeros([size(borders), 3]);   % black base
-        borderRGB(:,:,2) = 1;                    % set green channel to 1 → pure green
+        borderRGB = zeros([size(borders), 3]);
+        borderRGB(:,:,2) = 1;
 
-
-
-        % --- Draw ---
         cla(ax);
         hold(ax, 'on');
-
-        % 1. Atlas histology (gray background)
         imagesc(ax, histoRGB);
-
-        % 2. eta2 overlay (hot, 80% opacity above threshold)
         hb = imagesc(ax, betaDisplay);
         set(hb, 'AlphaData', double(~isnan(betaDisplay)) * 0.80);
-
-        % 3. Region borders (white, semi-transparent)
         hbord = imagesc(ax, borderRGB);
         set(hbord, 'AlphaData', double(borders) * 0.35);
-
         hold(ax, 'off');
 
-        % Fill axes, then add a 5% proportional margin so the brain doesn't
-        % touch the frame edges
         axis(ax, 'tight');
         xl = xlim(ax);  yl = ylim(ax);
         mx = 0.05 * (xl(2) - xl(1));
@@ -208,6 +219,57 @@ onModelChange(1);
             'Color', 'w', 'FontSize', 13, 'Interpreter', 'none');
     end
 
+    % ----------------------------------------------------------
+    %  updateDesignMatrix — redraws stacked subplots (right col)
+    % ----------------------------------------------------------
+    function updateDesignMatrix()
+        % Delete all existing axes inside the design matrix panel
+        delete(findobj(pDesign, 'Type', 'axes'));
+
+        mdata  = res.models.(modelNames{curModel});
+        X      = mdata.Xmodel;                    % [T x p]
+        labels = mdata.predictor_labels(1:end-1); % drop 'intercept'
+        [T, p] = size(X);
+
+        % Build formula string and display in the formula text widget
+        formula = ['Y ~ ' strjoin(strrep(labels, '_', ' '), ' + ')];
+        txtFormula.String = formula;
+
+        % Compute normalized positions inside pDesign for p subplots.
+        % topMargin accounts for the formula text widget at the top (0.94–0.99).
+        topMargin    = 0.10;   % leave room for formula widget above subplots
+        bottomMargin = 0.07;   % fraction reserved at bottom for xlabel
+        gapFraction  = 0.01;   % gap between subplots
+
+        totalH = 1 - topMargin - bottomMargin - (p - 1) * gapFraction;
+        axH    = totalH / p;
+
+        lineColor = [0.15 0.15 0.15];
+
+        for k = 1:p
+            % Position: bottom of k-th subplot (k=1 is top)
+            yBot = 1 - topMargin - k * axH - (k - 1) * gapFraction;
+
+            axk = axes('Parent', pDesign, ...
+                'Units', 'normalized', ...
+                'Position', [0.12, yBot, 0.84, axH]);
+
+            plot(axk, 1:T, X(:, k), 'Color', lineColor, 'LineWidth', 0.8);
+            ylabel(axk, strrep(labels{k}, '_', ' '), 'Interpreter', 'none');
+            xlim(axk, [1 T]);
+            set(axk, 'TickDir', 'out', 'Box', 'off');
+
+            if k < p
+                set(axk, 'XTickLabel', []);
+            else
+                xlabel(axk, 'Frame');
+            end
+        end
+    end
+
+    % ----------------------------------------------------------
+    %  onAxesClick — identify clicked region in brain slice
+    % ----------------------------------------------------------
     function onAxesClick(~, ~)
         pt = get(ax, 'CurrentPoint');
         x  = round(pt(1, 1));
@@ -216,7 +278,7 @@ onModelChange(1);
         if x < xl(1) || x > xl(2) || y < yl(1) || y > yl(2); return; end
 
         if x >= 1 && x <= nc && y >= 1 && y <= nr
-            rId = subRegions(y, x);   % subRegions already flipped
+            rId = subRegions(y, x);
             if rId >= 1 && rId <= numel(atlas.infoRegions.name)
                 rname = atlas.infoRegions.name{rId};
                 racr  = atlas.infoRegions.acr{rId};

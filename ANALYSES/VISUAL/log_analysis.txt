@@ -1,0 +1,532 @@
+>> analysis_visual_FONDUTA
+
+=================================================
+ analysis_visual_FONDUTA.m  |  condition: VisualTest
+ Sessions found: 34
+
+ Results will be saved in:
+
+ /data06/fUSIMethodsPaper/Data_analysis/sub-Group/VisualTest/Functional/LC
+=================================================
+
+
+--- Session 1 / 34 ---
+Elapsed time is 8.853716 seconds.
+Session: running trials 10 / 10 — SKIPPED (all trials running)
+
+--- Session 2 / 34 ---
+Elapsed time is 8.714890 seconds.
+Session: running trials 4 / 10
+Elapsed time is 11.878749 seconds.
+  M1: Stimulus only
+  M2: Hard global PC1
+  M3: Soft global PC1
+  M4: Soft non-brain PC1
+  M5: Behavior
+  M6a: Behavior + soft global PC1
+  M6b: Behavior + soft non-brain PC1
+  M6c: Behavior + soft global + non-brain PC1
+  M7a: Unique smooth running effect
+  M7b: Unique conv running effect
+  M8: Stationary visual
+Done fitting models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/sub-Group/VisualTest/Functional/LC/glm_run-152539.mat
+
+--- Session 3 / 34 ---
+Elapsed time is 8.808088 seconds.
+Session: running trials 10 / 10 — SKIPPED (all trials running)
+
+--- Session 4 / 34 ---
+Elapsed time is 8.569083 seconds.
+Session: running trials 10 / 10 — SKIPPED (all trials running)
+
+--- Session 5 / 34 ---
+Elapsed time is 8.959212 seconds.
+Session: running trials 7 / 10
+Elapsed time is 10.937307 seconds.
+  M1: Stimulus only
+  M2: Hard global PC1
+  M3: Soft global PC1
+  M4: Soft non-brain PC1
+  M5: Behavior
+  M6a: Behavior + soft global PC1
+  M6b: Behavior + soft non-brain PC1
+  M6c: Behavior + soft global + non-brain PC1
+  M7a: Unique smooth running effect
+  M7b: Unique conv running effect
+  M8: Stationary visual
+Done fitting models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/sub-Group/VisualTest/Functional/LC/glm_run-142825.mat
+
+--- Session 6 / 34 ---
+Elapsed time is 8.516393 seconds.
+Session: running trials 6 / 10
+Elapsed time is 11.390687 seconds.
+  M1: Stimulus only
+  M2: Hard global PC1
+  M3: Soft global PC1
+  M4: Soft non-brain PC1
+  M5: Behavior
+  M6a: Behavior + soft global PC1
+  M6b: Behavior + soft non-brain PC1
+  M6c: Behavior + soft global + non-brain PC1
+  M7a: Unique smooth running effect
+  M7b: Unique conv running effect
+  M8: Stationary visual
+Done fitting models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/sub-Group/VisualTest/Functional/LC/glm_run-114946.mat
+
+--- Session 7 / 34 ---
+Elapsed time is 13.607682 seconds.
+Session: running trials 10 / 10 — SKIPPED (all trials running)
+
+--- Session 8 / 34 ---
+Elapsed time is 13.343664 seconds.
+Session: running trials 10 / 10 — SKIPPED (all trials running)
+
+--- Session 9 / 34 ---
+Elapsed time is 5.048023 seconds.
+Session: running trials 3 / 5
+Elapsed time is 4.088037 seconds.
+  M1: Stimulus only
+  M2: Hard global PC1
+  M3: Soft global PC1
+  M4: Soft non-brain PC1
+  M5: Behavior
+  M6a: Behavior + soft global PC1
+  M6b: Behavior + soft non-brain PC1
+  M6c: Behavior + soft global + non-brain PC1
+  M7a: Unique smooth running effect
+  M7b: Unique conv running effect
+  M8: Stationary visual
+Done fitting models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/sub-Group/VisualTest/Functional/LC/glm_run-125114.mat
+
+--- Session 10 / 34 ---
+Elapsed time is 5.087014 seconds.
+Session: running trials 5 / 5 — SKIPPED (all trials running)
+
+--- Session 11 / 34 ---
+Elapsed time is 7.489804 seconds.
+Session: running trials 9 / 10
+Elapsed time is 9.040448 seconds.
+  M1: Stimulus only
+  M2: Hard global PC1
+  M3: Soft global PC1
+  M4: Soft non-brain PC1
+  M5: Behavior
+  M6a: Behavior + soft global PC1
+  M6b: Behavior + soft non-brain PC1
+  M6c: Behavior + soft global + non-brain PC1
+  M7a: Unique smooth running effect
+  M7b: Unique conv running effect
+  M8: Stationary visual
+Done fitting models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/sub-Group/VisualTest/Functional/LC/glm_run-164739.mat
+
+--- Session 12 / 34 ---
+Elapsed time is 7.177264 seconds.
+Session: running trials 4 / 5
+Elapsed time is 7.724738 seconds.
+  M1: Stimulus only
+  M2: Hard global PC1
+  M3: Soft global PC1
+  M4: Soft non-brain PC1
+  M5: Behavior
+  M6a: Behavior + soft global PC1
+  M6b: Behavior + soft non-brain PC1
+  M6c: Behavior + soft global + non-brain PC1
+  M7a: Unique smooth running effect
+  M7b: Unique conv running effect
+  M8: Stationary visual
+Done fitting models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/sub-Group/VisualTest/Functional/LC/glm_run-124507.mat
+
+--- Session 13 / 34 ---
+Elapsed time is 7.302773 seconds.
+Session: running trials 3 / 5
+Elapsed time is 7.869450 seconds.
+  M1: Stimulus only
+  M2: Hard global PC1
+  M3: Soft global PC1
+  M4: Soft non-brain PC1
+  M5: Behavior
+  M6a: Behavior + soft global PC1
+  M6b: Behavior + soft non-brain PC1
+  M6c: Behavior + soft global + non-brain PC1
+  M7a: Unique smooth running effect
+  M7b: Unique conv running effect
+  M8: Stationary visual
+Done fitting models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/sub-Group/VisualTest/Functional/LC/glm_run-142450.mat
+
+--- Session 14 / 34 ---
+Elapsed time is 7.097032 seconds.
+Session: running trials 2 / 5
+Elapsed time is 8.498157 seconds.
+  M1: Stimulus only
+  M2: Hard global PC1
+  M3: Soft global PC1
+  M4: Soft non-brain PC1
+  M5: Behavior
+  M6a: Behavior + soft global PC1
+  M6b: Behavior + soft non-brain PC1
+  M6c: Behavior + soft global + non-brain PC1
+  M7a: Unique smooth running effect
+  M7b: Unique conv running effect
+  M8: Stationary visual
+Done fitting models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/sub-Group/VisualTest/Functional/LC/glm_run-114737.mat
+
+--- Session 15 / 34 ---
+Elapsed time is 11.298945 seconds.
+Session: running trials 7 / 10
+Elapsed time is 19.851731 seconds.
+  M1: Stimulus only
+  M2: Hard global PC1
+  M3: Soft global PC1
+  M4: Soft non-brain PC1
+  M5: Behavior
+  M6a: Behavior + soft global PC1
+  M6b: Behavior + soft non-brain PC1
+  M6c: Behavior + soft global + non-brain PC1
+  M7a: Unique smooth running effect
+  M7b: Unique conv running effect
+  M8: Stationary visual
+Done fitting models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/sub-Group/VisualTest/Functional/LC/glm_run-153002.mat
+
+--- Session 16 / 34 ---
+Elapsed time is 13.419780 seconds.
+Session: running trials 6 / 10
+Elapsed time is 28.871923 seconds.
+  M1: Stimulus only
+  M2: Hard global PC1
+  M3: Soft global PC1
+  M4: Soft non-brain PC1
+  M5: Behavior
+  M6a: Behavior + soft global PC1
+  M6b: Behavior + soft non-brain PC1
+  M6c: Behavior + soft global + non-brain PC1
+  M7a: Unique smooth running effect
+  M7b: Unique conv running effect
+  M8: Stationary visual
+Done fitting models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/sub-Group/VisualTest/Functional/LC/glm_run-142742.mat
+
+--- Session 17 / 34 ---
+Elapsed time is 12.043862 seconds.
+Session: running trials 6 / 10
+Elapsed time is 21.322048 seconds.
+  M1: Stimulus only
+  M2: Hard global PC1
+  M3: Soft global PC1
+  M4: Soft non-brain PC1
+  M5: Behavior
+  M6a: Behavior + soft global PC1
+  M6b: Behavior + soft non-brain PC1
+  M6c: Behavior + soft global + non-brain PC1
+  M7a: Unique smooth running effect
+  M7b: Unique conv running effect
+  M8: Stationary visual
+Done fitting models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/sub-Group/VisualTest/Functional/LC/glm_run-152916.mat
+
+--- Session 18 / 34 ---
+Elapsed time is 13.651466 seconds.
+Session: running trials 10 / 10 — SKIPPED (all trials running)
+
+--- Session 19 / 34 ---
+Elapsed time is 13.420527 seconds.
+Session: running trials 9 / 10
+Elapsed time is 22.515908 seconds.
+  M1: Stimulus only
+  M2: Hard global PC1
+  M3: Soft global PC1
+  M4: Soft non-brain PC1
+  M5: Behavior
+  M6a: Behavior + soft global PC1
+  M6b: Behavior + soft non-brain PC1
+  M6c: Behavior + soft global + non-brain PC1
+  M7a: Unique smooth running effect
+  M7b: Unique conv running effect
+  M8: Stationary visual
+Done fitting models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/sub-Group/VisualTest/Functional/LC/glm_run-144522.mat
+
+--- Session 20 / 34 ---
+Elapsed time is 13.052683 seconds.
+Session: running trials 8 / 10
+Elapsed time is 23.192706 seconds.
+  M1: Stimulus only
+  M2: Hard global PC1
+  M3: Soft global PC1
+  M4: Soft non-brain PC1
+  M5: Behavior
+  M6a: Behavior + soft global PC1
+  M6b: Behavior + soft non-brain PC1
+  M6c: Behavior + soft global + non-brain PC1
+  M7a: Unique smooth running effect
+  M7b: Unique conv running effect
+  M8: Stationary visual
+Done fitting models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/sub-Group/VisualTest/Functional/LC/glm_run-150701.mat
+
+--- Session 21 / 34 ---
+Elapsed time is 13.880355 seconds.
+Session: running trials 9 / 10
+Elapsed time is 22.977099 seconds.
+  M1: Stimulus only
+  M2: Hard global PC1
+  M3: Soft global PC1
+  M4: Soft non-brain PC1
+  M5: Behavior
+  M6a: Behavior + soft global PC1
+  M6b: Behavior + soft non-brain PC1
+  M6c: Behavior + soft global + non-brain PC1
+  M7a: Unique smooth running effect
+  M7b: Unique conv running effect
+  M8: Stationary visual
+Done fitting models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/sub-Group/VisualTest/Functional/LC/glm_run-104841.mat
+
+--- Session 22 / 34 ---
+Elapsed time is 13.655151 seconds.
+Session: running trials 4 / 10
+Elapsed time is 22.761572 seconds.
+  M1: Stimulus only
+  M2: Hard global PC1
+  M3: Soft global PC1
+  M4: Soft non-brain PC1
+  M5: Behavior
+  M6a: Behavior + soft global PC1
+  M6b: Behavior + soft non-brain PC1
+  M6c: Behavior + soft global + non-brain PC1
+  M7a: Unique smooth running effect
+  M7b: Unique conv running effect
+  M8: Stationary visual
+Done fitting models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/sub-Group/VisualTest/Functional/LC/glm_run-111054.mat
+
+--- Session 23 / 34 ---
+Elapsed time is 13.625961 seconds.
+Session: running trials 9 / 10
+Elapsed time is 21.047088 seconds.
+  M1: Stimulus only
+  M2: Hard global PC1
+  M3: Soft global PC1
+  M4: Soft non-brain PC1
+  M5: Behavior
+  M6a: Behavior + soft global PC1
+  M6b: Behavior + soft non-brain PC1
+  M6c: Behavior + soft global + non-brain PC1
+  M7a: Unique smooth running effect
+  M7b: Unique conv running effect
+  M8: Stationary visual
+Done fitting models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/sub-Group/VisualTest/Functional/LC/glm_run-140450.mat
+
+--- Session 24 / 34 ---
+Elapsed time is 12.996960 seconds.
+Session: running trials 4 / 10
+Elapsed time is 21.965744 seconds.
+  M1: Stimulus only
+  M2: Hard global PC1
+  M3: Soft global PC1
+  M4: Soft non-brain PC1
+  M5: Behavior
+  M6a: Behavior + soft global PC1
+  M6b: Behavior + soft non-brain PC1
+  M6c: Behavior + soft global + non-brain PC1
+  M7a: Unique smooth running effect
+  M7b: Unique conv running effect
+  M8: Stationary visual
+Done fitting models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/sub-Group/VisualTest/Functional/LC/glm_run-142648.mat
+
+--- Session 25 / 34 ---
+Elapsed time is 13.985605 seconds.
+Session: running trials 5 / 10
+Elapsed time is 27.518554 seconds.
+  M1: Stimulus only
+  M2: Hard global PC1
+  M3: Soft global PC1
+  M4: Soft non-brain PC1
+  M5: Behavior
+  M6a: Behavior + soft global PC1
+  M6b: Behavior + soft non-brain PC1
+  M6c: Behavior + soft global + non-brain PC1
+  M7a: Unique smooth running effect
+  M7b: Unique conv running effect
+  M8: Stationary visual
+Done fitting models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/sub-Group/VisualTest/Functional/LC/glm_run-161356.mat
+
+--- Session 26 / 34 ---
+Elapsed time is 13.456396 seconds.
+Session: running trials 5 / 10
+Elapsed time is 27.260908 seconds.
+  M1: Stimulus only
+  M2: Hard global PC1
+  M3: Soft global PC1
+  M4: Soft non-brain PC1
+  M5: Behavior
+  M6a: Behavior + soft global PC1
+  M6b: Behavior + soft non-brain PC1
+  M6c: Behavior + soft global + non-brain PC1
+  M7a: Unique smooth running effect
+  M7b: Unique conv running effect
+  M8: Stationary visual
+Done fitting models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/sub-Group/VisualTest/Functional/LC/glm_run-163615.mat
+
+--- Session 27 / 34 ---
+Elapsed time is 13.803098 seconds.
+Session: running trials 5 / 10
+Elapsed time is 23.439512 seconds.
+  M1: Stimulus only
+  M2: Hard global PC1
+  M3: Soft global PC1
+  M4: Soft non-brain PC1
+  M5: Behavior
+  M6a: Behavior + soft global PC1
+  M6b: Behavior + soft non-brain PC1
+  M6c: Behavior + soft global + non-brain PC1
+  M7a: Unique smooth running effect
+  M7b: Unique conv running effect
+  M8: Stationary visual
+Done fitting models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/sub-Group/VisualTest/Functional/LC/glm_run-115826.mat
+
+--- Session 28 / 34 ---
+Elapsed time is 13.075729 seconds.
+Session: running trials 4 / 10
+Elapsed time is 22.978308 seconds.
+  M1: Stimulus only
+  M2: Hard global PC1
+  M3: Soft global PC1
+  M4: Soft non-brain PC1
+  M5: Behavior
+  M6a: Behavior + soft global PC1
+  M6b: Behavior + soft non-brain PC1
+  M6c: Behavior + soft global + non-brain PC1
+  M7a: Unique smooth running effect
+  M7b: Unique conv running effect
+  M8: Stationary visual
+Done fitting models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/sub-Group/VisualTest/Functional/LC/glm_run-122011.mat
+
+--- Session 29 / 34 ---
+Elapsed time is 12.767785 seconds.
+Session: running trials 7 / 10
+Elapsed time is 23.619735 seconds.
+  M1: Stimulus only
+  M2: Hard global PC1
+  M3: Soft global PC1
+  M4: Soft non-brain PC1
+  M5: Behavior
+  M6a: Behavior + soft global PC1
+  M6b: Behavior + soft non-brain PC1
+  M6c: Behavior + soft global + non-brain PC1
+  M7a: Unique smooth running effect
+  M7b: Unique conv running effect
+  M8: Stationary visual
+Done fitting models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/sub-Group/VisualTest/Functional/LC/glm_run-152201.mat
+
+--- Session 30 / 34 ---
+Elapsed time is 13.099457 seconds.
+Session: running trials 5 / 10
+Elapsed time is 23.938050 seconds.
+  M1: Stimulus only
+  M2: Hard global PC1
+  M3: Soft global PC1
+  M4: Soft non-brain PC1
+  M5: Behavior
+  M6a: Behavior + soft global PC1
+  M6b: Behavior + soft non-brain PC1
+  M6c: Behavior + soft global + non-brain PC1
+  M7a: Unique smooth running effect
+  M7b: Unique conv running effect
+  M8: Stationary visual
+Done fitting models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/sub-Group/VisualTest/Functional/LC/glm_run-154343.mat
+
+--- Session 31 / 34 ---
+Elapsed time is 24.940518 seconds.
+Session: running trials 11 / 20
+Elapsed time is 80.938378 seconds.
+  M1: Stimulus only
+  M2: Hard global PC1
+  M3: Soft global PC1
+  M4: Soft non-brain PC1
+  M5: Behavior
+  M6a: Behavior + soft global PC1
+  M6b: Behavior + soft non-brain PC1
+  M6c: Behavior + soft global + non-brain PC1
+  M7a: Unique smooth running effect
+  M7b: Unique conv running effect
+  M8: Stationary visual
+Done fitting models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/sub-Group/VisualTest/Functional/LC/glm_run-101347.mat
+
+--- Session 32 / 34 ---
+Elapsed time is 24.881100 seconds.
+Session: running trials 13 / 20
+Elapsed time is 81.491623 seconds.
+  M1: Stimulus only
+  M2: Hard global PC1
+  M3: Soft global PC1
+  M4: Soft non-brain PC1
+  M5: Behavior
+  M6a: Behavior + soft global PC1
+  M6b: Behavior + soft non-brain PC1
+  M6c: Behavior + soft global + non-brain PC1
+  M7a: Unique smooth running effect
+  M7b: Unique conv running effect
+  M8: Stationary visual
+Done fitting models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/sub-Group/VisualTest/Functional/LC/glm_run-112118.mat
+
+--- Session 33 / 34 ---
+Elapsed time is 13.998570 seconds.
+Session: running trials 9 / 30
+Elapsed time is 27.877477 seconds.
+  M1: Stimulus only
+  M2: Hard global PC1
+  M3: Soft global PC1
+  M4: Soft non-brain PC1
+  M5: Behavior
+  M6a: Behavior + soft global PC1
+  M6b: Behavior + soft non-brain PC1
+  M6c: Behavior + soft global + non-brain PC1
+  M7a: Unique smooth running effect
+  M7b: Unique conv running effect
+  M8: Stationary visual
+Done fitting models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/sub-Group/VisualTest/Functional/LC/glm_run-142136.mat
+
+--- Session 34 / 34 ---
+Elapsed time is 36.693774 seconds.
+Session: running trials 27 / 30
+Elapsed time is 123.786047 seconds.
+  M1: Stimulus only
+  M2: Hard global PC1
+  M3: Soft global PC1
+  M4: Soft non-brain PC1
+  M5: Behavior
+  M6a: Behavior + soft global PC1
+  M6b: Behavior + soft non-brain PC1
+  M6c: Behavior + soft global + non-brain PC1
+  M7a: Unique smooth running effect
+  M7b: Unique conv running effect
+  M8: Stationary visual
+Done fitting models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/sub-Group/VisualTest/Functional/LC/glm_run-143014.mat
+Elapsed time is 225.076465 seconds.
+
+=================================================
+ Included sessions (27 / 34):
+     2     5     6     9    11    12    13    14    15    16    17    19    20    21    22    23    24    25    26    27    28    29    30    31    32    33    34
+
+=================================================
