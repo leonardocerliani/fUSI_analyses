@@ -1,10 +1,11 @@
-function [bmask, nonBrainMask] = build_brain_masks(anatomic, Transf)
+function [bmask, nonBrainMask, allen_regions] = build_brain_masks(anatomic, Transf)
 % fonduta.atlas.build_brain_masks  Generate binary brain and non-brain masks in subject space.
 %
 % Maps the Allen Brain Atlas into the subject's fUSI space via
 % fonduta.atlas.atlas2individual, extracts the functional slice, and creates:
 %   - bmask        : dilated binary brain mask (1 = brain)
 %   - nonBrainMask : logical complement of bmask (1 = outside brain)
+%   - allen_regions: integer map of Allen Brain Atlas region IDs in subject space
 %
 % Inputs:
 %   anatomic - anatomical struct loaded from anatomic.mat
@@ -12,8 +13,12 @@ function [bmask, nonBrainMask] = build_brain_masks(anatomic, Transf)
 %   Transf   - registration transformation struct loaded from Transformation.mat
 %
 % Outputs:
-%   bmask        - [nx x ny] double binary mask (0/1); brain voxels = 1
-%   nonBrainMask - [nx x ny] logical mask; non-brain voxels = true
+%   bmask         - [nx x ny] double binary mask (0/1); brain voxels = 1
+%   nonBrainMask  - [nx x ny] logical mask; non-brain voxels = true
+%   allen_regions - [nx x ny] int16 map of Allen Brain Atlas region IDs in subject
+%                   space. Cross-reference with atlas.infoRegions.acr / .name
+%                   (from fonduta.atlas.load_atlas()) to get region names.
+%                   Region ID 0 = outside atlas coverage.
 %
 % Notes:
 %   Loads allen_brain_atlas.mat from the same directory as this .m file.
@@ -39,5 +44,8 @@ function [bmask, nonBrainMask] = build_brain_masks(anatomic, Transf)
 
     %% Non-brain mask (complement of dilated brain mask)
     nonBrainMask = bmask == 0;
+
+    %% Allen region IDs in subject space (before binarization)
+    allen_regions = subRegions;
 
 end

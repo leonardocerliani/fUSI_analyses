@@ -1,100 +1,161 @@
 # Active Context
 
 ## Current Focus
-Visual GLM analysis pipeline (`03_ANALYSES/VISUAL/`) — refactoring complete, awaiting user testing on one subject.
+FONDUTA package — stable. New interactive GLM viewer `fonduta.viz.view_glmfit` built and polished.
+Next session: ridge regression / HRF CV analysis (`ANALYSES/VISUAL/analysis_HRF_CV_ridge.m`).
 
-## What Was Built
-A complete, clean GLM analysis pipeline for the visual stimulation paradigm. The architecture follows the ALTERNATIVE_Analysis_MethodPaper pattern: one `glm()` engine, model specifications visible in the orchestrator.
+## What Was Built: FONDUTA Package
 
-## Final Architecture (03_ANALYSES/VISUAL/)
+A reusable MATLAB toolbox (`FONDUTA/`) extracted from the visual GLM analysis.
+Lives at `FONDUTA/+fonduta/` and is used by the orchestrator `ANALYSES/VISUAL/analysis_visual_FONDUTA.m`.
+
+### Package Structure
+```
+FONDUTA/
+├── +fonduta/
+│   ├── +atlas/
+│   │   ├── allen_brain_atlas.mat     ← atlas data file
+│   │   ├── load_atlas.m              ← convenience loader: atlas = fonduta.atlas.load_atlas()
+│   │   ├── build_brain_masks.m       ← calls load_atlas() internally
+│   │   ├── atlas2individual.m        ← atlas → subject space
+│   │   └── individual2atlas.m        ← subject → atlas space
+│   ├── +glm/
+│   │   ├── engine.m                  ← dispatches to ols.m
+│   │   ├── ols.m                     ← OLS engine: accepts 3D PDI, returns remapped results
+│   │   ├── prepare_data_matrix.m     ← [nx x ny x T] → [T x V]
+│   │   ├── regress_out_nuisance.m
+│   │   ├── remap_results.m           ← [* x V] → [* x nx x ny]
+│   │   ├── remap_vec.m               ← [1 x V] → [nx x ny]
+│   │   └── zscore_safe.m
+│   ├── +io/
+│   │   ├── parsave.m
+│   │   └── +datapath/
+│   │       ├── load_session.m        ← loads prepPDI.mat, anatomic.mat, Transformation.mat
+│   │       └── save_results.m        ← saves GLMSes<isub>.mat
+│   ├── +signal/
+│   │   ├── hrf.m                     ← SPM double-gamma HRF kernel
+│   │   └── compute_pc1.m
+│   ├── +utils/
+│   │   └── extract_pc1_signals.m     ← globalPC1, nonBrainPC1, YhardGlobalPC1
+│   └── +viz/
+│       └── view_glmfit.m             ← Interactive eta2 viewer on Allen Atlas (NEW)
+├── utils_ext/
+│   └── BrunnerCodes/                 ← third-party registration tools (incl. interpolate3D.m)
+└── README.md
+```
+
+**DELETED from FONDUTA:** `+fonduta/+io/+datapath/get_paths.m`
+(was wrongly hardcoding session paths; Datapath.m lives in each analysis directory)
+
+## fonduta.viz.view_glmfit — Interactive Viewer
+
+### Usage
+```matlab
+fonduta.viz.view_glmfit('ANALYSES/VISUAL/GLMSes33.mat')
+```
+
+### Architecture
+- Loads results file (`res.data`), loads atlas, maps atlas → subject space once via `atlas2individual`
+- Displays the functional slice (`anatomic.funcSlice(3)`) of the registered atlas histology
+- All display layers are `[nr × nc]` (subject-space functional slice size), pixel-aligned
+- Data is `flipud`-ed for correct dorsal-up orientation
+
+### Left-column controls
+| Panel | Widget | Function |
+|-------|--------|----------|
+| Model | listbox | select model; predictor list auto-rebuilds |
+| Predictor | listbox | select predictor from current model |
+| η² threshold | slider 0–0.5 (default 0.05) | hide eta2 voxels below threshold |
+| Region label | text (yellow) | shows name/acronym/ID on click |
+
+### Display layers (updateDisplay)
+1. Atlas histology (gray): `cat(3, subHisto, subHisto, subHisto)` — grayscale RGB
+2. eta2 overlay (hot colormap, 80% opacity): `mdata.eta2(curPred,:,:)`, flipud, threshold applied
+3. Region borders (green, 35% opacity): morphological edges excluding IDs 0 & 1
+
+### Region border logic (IDs 0 and 1 suppressed)
+```matlab
+se           = strel('diamond', 1);
+subReg_named = subRegions;
+subReg_named(subReg_named <= 1) = 0;
+borders = (imdilate(subReg_named, se) ~= imerode(subReg_named, se)) & ...
+          (subReg_named > 0) & ...
+          (imerode(subReg_named, se) > 0);
+```
+
+### Title / labels
+- Title: `'Interpreter', 'none'` + `strrep(..., '_', ' ')` to avoid LaTeX rendering
+- Panel titles: `FontSize 14, FontWeight bold` for visibility on dark background
+
+### Click identification
+- `onAxesClick` reads `subRegions(y, x)` (already flipud)
+- Looks up `atlas.infoRegions.name{rId}` and `atlas.infoRegions.acr{rId}`
+
+## Analysis Orchestrator Architecture
 
 ```
-analysis_visual.m       ← Main orchestrator (run from this directory)
-Datapath.m              ← Path resolver for all conditions
-
-UTILS/
-  glm.m                 ← Single GLM engine (z-scores X internally)
-  remap_glm_results.m   ← [* x V] → [* x nx x ny] spatial maps
-  prepare_data_matrix.m ← [nx x ny x T] → [T x V], brain voxels only
-  remap_vec.m           ← [1 x V] → [nx x ny] for correlation maps
-  hemodynamicResponse.m ← SPM double-gamma HRF kernel
-  zscoreSafe.m          ← Z-score columns; constant → zero (not NaN)
-  parsave.m             ← Save wrapper safe for parfor
-  computePC1FromMask.m  ← Extract z-scored PC1 from masked voxels
-  regressOutNuisance.m  ← Regress nuisance from Y matrix
-
-ATLAS/
-  allen_brain_atlas.mat
-  Atlas2Individual.m
-
-+io/
-  load_session.m        ← Loads prepPDI.mat, anatomic.mat, Transformation.mat
-  save_results.m        ← Saves GLMSes<isub>.mat via parsave
-
-+prep/
-  build_brain_masks.m   ← Atlas-based bmask + dilated nonBrainMask
-  detect_running_trials.m ← bwconncomp-based running classification
-
-+model/
-  build_stimulus_design.m     ← Raw boxcars (stimVisual, stimVisualRunning) + trial metadata
-  build_behavior_regressors.m ← wheel speed signals + steadyExcludeMask
-  extract_pc1.m               ← globalPC1, nonBrainPC1, YhardGlobalPC1
+ANALYSES/VISUAL/
+├── analysis_visual_FONDUTA.m    ← Main orchestrator
+├── analysis_HRF_CV_ridge.m      ← Ridge regression / HRF cross-validation (IN PROGRESS)
+├── Datapath.m                   ← Session path resolver (experiment-specific, stays here)
+└── +fn/
+    ├── build_stimulus_design.m
+    ├── build_behavior_regressors.m
+    └── detect_running_trials.m
 ```
 
-**Deleted:** `+glm/` package (8 files), `+model/assemble_predictors.m`
-
-## Key Design Decisions
+### Key Design Principle: Datapath Separation
+- `Datapath(condition)` is called directly in the orchestrator — NOT via FONDUTA
+- FONDUTA has zero knowledge of session paths
+- Each analysis directory owns its own `Datapath.m`
 
 ### hrf() anonymous function
 ```matlab
-TR         = mean(diff(PDI.time));          % computed from data
-hrf_kernel = hemodynamicResponse(TR, hrfParams);
+TR         = mean(diff(PDI.time));
+hrf_kernel = fonduta.signal.hrf(TR, hrfParams);
 hrf        = @(ev) filter(hrf_kernel, 1, ev(:));
 ```
-Predictor lines then read as formulas:
+
+### fonduta.glm.ols() signature
 ```matlab
-M5_predictors = [hrf(stim_all), wheel, hrf(wheel), hrf(stim_all .* wheel)];
+result = fonduta.glm.ols(model_name, PDI3D, bmask, X, predictor_labels)
+```
+- Accepts 3D `PDI.PDI [nx x ny x T]` directly
+- Z-scores X internally (callers pass raw signals)
+- Returns `.betas [p+1 x nx x ny]`, `.eta2 [p x nx x ny]`, `.R2 [nx x ny]`
+
+## Results File Structure
+```matlab
+% GLMSes33.mat → res = tmp.data
+res.models.M8_SteadyVisual.betas          % [p+1 x nx x ny]
+res.models.M8_SteadyVisual.eta2           % [p x nx x ny]
+res.models.M8_SteadyVisual.predictor_labels  % cell array
+res.anatPath                               % path to anatomic.mat
+res.Transf                                 % Transf.M = subject→atlas affine
+res.bmask                                  % [nx x ny] brain mask
 ```
 
-### glm() signature
-```matlab
-results = glm(model_name, Y, X, predictor_labels)
-```
-- `Y`: `[T x V]` from `prepare_data_matrix()`
-- `X`: raw signals (NO pre-z-scoring required; `glm.m` calls `zscoreSafe(X)` internally)
-- Intercept auto-appended as last column
-- Returns `.betas [p+1 x V]`, `.eta2 [p x V]`, `.R2 [1 x V]`
-
-### Partial eta² formula (reduced-model approach)
-```matlab
-eta2_j = max(0, SSE_reduced_j - SSE_full) / (max(0, SSE_reduced_j - SSE_full) + SSE_full)
-```
-
-### Result structure
-```matlab
-glmresult.models.M1_StimOnly       % .betas, .eta2, .R2, .predictor_labels
-glmresult.models.M2_HardGlobalPC1
-...
-glmresult.models.M8_SteadyVisual   % + .corrAll, .corrSteady
-```
-Saved per session as `GLMSes<isub>.mat` (variable `data`).
-
-## Models in analysis_visual.m
+## Models Implemented (11 total)
 | Name | Predictors |
 |------|-----------|
 | M1_StimOnly | `hrf(stim_all)` |
-| M2_HardGlobalPC1 | `hrf(stim_all)` on `Y_hardPC1` |
+| M2_HardGlobalPC1 | `hrf(stim_all)` on `YhardGlobalPC1` |
 | M3_SoftGlobalPC1 | `[hrf(stim_all), globalPC1]` |
 | M4_SoftNonBrainPC1 | `[hrf(stim_all), nonBrainPC1]` |
 | M5_Behavior | `[hrf(stim_all), wheel, hrf(wheel), hrf(stim_all.*wheel)]` |
 | M6a_BehSoftGlobalPC1 | M5 + `globalPC1` |
 | M6b_BehSoftNonBrainPC1 | M5 + `nonBrainPC1` |
 | M6c_BehSoftBothPC1 | M5 + `globalPC1` + `nonBrainPC1` |
-| M7a_RunSmooth | `[wheelSmooth, hrf(stim_all), hrf(wheel), hrf(stim_all.*wheel)]` — wheelSmooth first |
-| M7b_RunConv | `[hrf(wheel), hrf(stim_all), wheelSmooth, hrf(stim_all.*wheel)]` — wheel_hrf first |
-| M8_SteadyVisual | `hrf(stim_stationary(includeSteady))` on `Y_steady` + correlation maps |
+| M7a_RunSmooth | `[wheelSmooth, hrf(stim_all), hrf(wheel), hrf(stim_all.*wheel)]` |
+| M7b_RunConv | `[hrf(wheel), hrf(stim_all), wheelSmooth, hrf(stim_all.*wheel)]` |
+| M8_SteadyVisual | `hrf(stim_stationary)` on steady timepoints + correlation maps |
 
-## Next Steps
-1. **User will test** `analysis_visual.m` step-by-step for one subject
-2. Fix any issues that arise during testing
-3. Eventually build `03_ANALYSES/SHOCK/` using the same architecture
+## Repository
+- GitHub: `leonardocerliani/fUSI_analyses`
+- `.gitignore` excludes: `chaoyi_data08/`, `memory-bank/tasks/`, `*.asv`, `*.m~`, `*.mlx~`, `.DS_Store`, `Thumbs.db`
+- `allen_brain_atlas.mat` (70 MB) committed directly (under GitHub's 100 MB limit)
+
+## Next Steps (next session)
+1. Continue `ANALYSES/VISUAL/analysis_HRF_CV_ridge.m` — ridge regression + HRF cross-validation
+2. Eventually build `ANALYSES/SHOCK/` using the same FONDUTA architecture
+3. Future: split FONDUTA into its own git repo; reference via `FONDUTA_PATH`

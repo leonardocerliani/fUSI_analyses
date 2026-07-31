@@ -4,8 +4,9 @@
 % Uses the FONDUTA package for all generic operations.
 %
 % USAGE:
-%   Set FONDUTA_PATH below, then run from within ANALYSES/VISUAL/ so that
-%   the local +fn/ package is visible.  FONDUTA can be anywhere on disk.
+%   1. Set FONDUTA_PATH below to the location of your FONDUTA directory.
+%   2. Run from within ANALYSES/VISUAL/ so that Datapath.m and the local
+%      +fn/ package are visible.  FONDUTA can be anywhere on disk.
 %
 % Fits 11 GLM models per session.  Each model is fully specified here with
 % explicit predictor construction:
@@ -37,8 +38,9 @@
 % Each file contains variable 'data' (= glmresult struct).
 %
 % Dependencies:
-%   FONDUTA package (set FONDUTA_PATH below)
-%   +fn/  (local to this analysis folder):
+%   FONDUTA package  (set FONDUTA_PATH below)
+%   Datapath.m       (in this directory — provides session paths)
+%   +fn/             (in this directory):
 %       fn.build_stimulus_design, fn.build_behavior_regressors,
 %       fn.detect_running_trials
 
@@ -47,8 +49,9 @@
 %  =========================================================================
 
 FONDUTA_PATH = '/data00/leonardo/github/fUSI_analyses/FONDUTA';
+addpath(genpath(FONDUTA_PATH));
 
-condition    = 'VisualTest';   % experiment condition
+condition    = 'VisualTest';   % experiment condition (passed to Datapath)
 resultFolder = 'LC';           % output subfolder name
 
 speedThresh  = 35;     % wheel speed threshold (counts/s) for running classification
@@ -58,17 +61,12 @@ minDuration  = 0.2;    % min running bout duration (s) to classify a trial as ru
 %   [delay_response, delay_undershoot, disp_response, disp_undershoot, ratio, onset, kernel_length_s]
 hrfParams    = [2.4  8  0.8  0.9  6  0  16];
 
-%% =========================================================================
-%  PATH SETUP  — add FONDUTA (only; +fn/ is local and auto-visible)
-%  =========================================================================
-
-addpath(genpath(FONDUTA_PATH));
 
 %% =========================================================================
-%  LOAD DATASET PATHS
+%  LOAD DATASET PATHS  (via the local Datapath.m)
 %  =========================================================================
 
-[subDataPath, subAnatPath, resultPath] = fonduta.io.datapath.get_paths(condition);
+[subDataPath, subAnatPath, resultPath] = Datapath(condition);
 
 fprintf('\n=================================================\n');
 fprintf(' analysis_visual_FONDUTA.m  |  condition: %s\n', condition);
@@ -82,6 +80,9 @@ fprintf('=================================================\n\n');
 
 warning('off', 'all');
 sesIncl = [];
+
+% Load the atlas (always useful)
+atlas = fonduta.atlas.load_atlas();
 
 for isub = 1:numel(subDataPath)
 
@@ -109,7 +110,7 @@ for isub = 1:numel(subDataPath)
         % -----------------------------------------------------------------
         % 3. Brain masks
         % -----------------------------------------------------------------
-        [bmask, nonBrainMask] = fonduta.atlas.build_brain_masks(anatomic, Transf);
+        [bmask, nonBrainMask, allen_regions] = fonduta.atlas.build_brain_masks(anatomic, Transf);
 
         % -----------------------------------------------------------------
         % 4. HRF convolution operator
@@ -128,10 +129,8 @@ for isub = 1:numel(subDataPath)
         % -----------------------------------------------------------------
         stimDesign = fn.build_stimulus_design(PDI, runningIdx);
         behDesign  = fn.build_behavior_regressors(PDI, hrf_kernel, speedThresh);
-        tic
         pc1Signals = fonduta.utils.extract_pc1_signals(PDI, bmask, nonBrainMask);
-        toc
-        
+
         % Unpack into short named variables for readable model specification
         stim_all        = stimDesign.stimVisual + stimDesign.stimVisualRunning;
         stim_stationary = stimDesign.stimVisual;
@@ -225,12 +224,14 @@ for isub = 1:numel(subDataPath)
         PDI_steady       = PDI.PDI(:, :, includeSteady);
         M8_pred_steady   = hrf(stim_stationary(includeSteady));
 
+        disp('Done fitting models')
+
         all_results.M8_SteadyVisual = fonduta.glm.ols( ...
             'M8_SteadyVisual', PDI_steady, bmask, ...
             M8_pred_steady, {'stim_stationary_hrf'});
 
         % Pearson correlation reference maps (need raw [T x V] matrices)
-        Y        = fonduta.glm.prepare_data_matrix(PDI.PDI,  bmask);
+        Y        = fonduta.glm.prepare_data_matrix(PDI.PDI,    bmask);
         Y_steady = fonduta.glm.prepare_data_matrix(PDI_steady, bmask);
 
         all_results.M8_SteadyVisual.corrAll = fonduta.glm.remap_vec( ...
@@ -242,8 +243,12 @@ for isub = 1:numel(subDataPath)
         % 7. Assemble glmresult  (metadata + all model results)
         % -----------------------------------------------------------------
         glmresult                   = struct();
+        glmresult.dataPath          = subDataPath{isub};
+        glmresult.anatPath          = subAnatPath{isub};
+        glmresult.Transf            = Transf;
         glmresult.bmask             = bmask;
         glmresult.nonBrainMask      = nonBrainMask;
+        glmresult.allen_regions     = allen_regions;
         glmresult.condMat           = stimDesign.condMat;
         glmresult.stim_all          = stim_all;
         glmresult.stim_stationary   = stim_stationary;
