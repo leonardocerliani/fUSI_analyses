@@ -31,10 +31,15 @@
 %     .betas            [p+1 x nx x ny]  rows 1..p = predictors; last = intercept
 %     .eta2             [p   x nx x ny]  partial eta² per predictor
 %     .R2               [nx  x ny]       global model R²
+%     .Xmodel           [T x p]          z-scored design matrix (no intercept)
 %     .predictor_labels                  cell array matching rows of betas / eta2
 %     .model_name                        string identifier
 %
-% Results are saved per session as GLMSes<isub>.mat in the result folder.
+% Raw predictor time-series are stored in glmresult.predictors (stim_all,
+% wheel, globalPC1, etc.) — separate from the per-model Xmodel matrices.
+%
+% Results are saved per session as glm_<runName>.mat, where runName is the
+% last path component of the session data directory (e.g. "run-142136").
 % Each file contains variable 'data' (= glmresult struct).
 %
 % Dependencies:
@@ -240,31 +245,36 @@ for isub = 1:numel(subDataPath)
             corr(M8_pred_steady, Y_steady), bmask);
 
         % -----------------------------------------------------------------
-        % 7. Assemble glmresult  (metadata + all model results)
+        % 7. Assemble glmresult  (metadata + predictors sub-struct + models)
         % -----------------------------------------------------------------
-        glmresult                   = struct();
-        glmresult.dataPath          = subDataPath{isub};
-        glmresult.anatPath          = subAnatPath{isub};
-        glmresult.Transf            = Transf;
-        glmresult.bmask             = bmask;
-        glmresult.nonBrainMask      = nonBrainMask;
-        glmresult.allen_regions     = allen_regions;
-        glmresult.condMat           = stimDesign.condMat;
-        glmresult.stim_all          = stim_all;
-        glmresult.stim_stationary   = stim_stationary;
-        glmresult.wheel             = wheel;
-        glmresult.wheelSmooth       = wheelSmooth;
-        glmresult.globalPC1         = globalPC1;
-        glmresult.nonBrainPC1       = nonBrainPC1;
-        glmresult.visualTrialIndex  = stimDesign.visualTrialIndex;
-        glmresult.runningTrialIndex = stimDesign.visualRunningTrialIndex;
-        glmresult.steadyExcludeMask = behDesign.steadyExcludeMask;
-        glmresult.models            = all_results;
+        glmresult             = struct();
+        glmresult.dataPath    = subDataPath{isub};
+        glmresult.anatPath    = subAnatPath{isub};
+        glmresult.Transf      = Transf;
+        glmresult.bmask       = bmask;
+        glmresult.nonBrainMask  = nonBrainMask;
+        glmresult.allen_regions = allen_regions;
+
+        % Raw predictor time-series — the building blocks used by all models
+        glmresult.predictors.condMat           = stimDesign.condMat;
+        glmresult.predictors.stim_all          = stim_all;
+        glmresult.predictors.stim_stationary   = stim_stationary;
+        glmresult.predictors.wheel             = wheel;
+        glmresult.predictors.wheelSmooth       = wheelSmooth;
+        glmresult.predictors.globalPC1         = globalPC1;
+        glmresult.predictors.nonBrainPC1       = nonBrainPC1;
+        glmresult.predictors.visualTrialIndex  = stimDesign.visualTrialIndex;
+        glmresult.predictors.runningTrialIndex = stimDesign.visualRunningTrialIndex;
+        glmresult.predictors.steadyExcludeMask = behDesign.steadyExcludeMask;
+
+        % Model results — each model contains .betas, .eta2, .R2,
+        %                 .Xmodel (z-scored design matrix), .predictor_labels
+        glmresult.models = all_results;
 
         % -----------------------------------------------------------------
         % 8. Save session result
         % -----------------------------------------------------------------
-        fonduta.io.datapath.save_results(resultPath, resultFolder, isub, glmresult);
+        fonduta.io.datapath.save_results(resultPath, resultFolder, subDataPath{isub}, glmresult);
 
     catch ME
         fprintf('ERROR in session %d: %s\n', isub, ME.message);

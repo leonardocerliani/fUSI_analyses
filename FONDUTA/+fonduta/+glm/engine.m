@@ -21,6 +21,7 @@ function results = engine(model_name, Y, X, predictor_labels)
 %       .betas            [p+1 x V]  parameter estimates
 %       .eta2             [p x V]    partial eta² per predictor (excl. intercept)
 %       .R2               [1 x V]    global model R²
+%       .Xmodel           [T x p]    z-scored design matrix (no intercept column)
 %       .predictor_labels {1 x p+1}  predictor names (last entry = 'intercept')
 %       .model_name       string
 %
@@ -43,6 +44,7 @@ end
 
 %% Z-score each predictor column before fitting
 X = fonduta.glm.zscore_safe(X);
+Xmodel = X;   % save z-scored design matrix (no intercept) for result struct
 
 %% Auto-append intercept (always last column)
 Xfull            = [X, ones(T, 1)];
@@ -77,6 +79,7 @@ results                  = struct();
 results.betas            = betas;
 results.eta2             = eta2;
 results.R2               = R2;
+results.Xmodel           = Xmodel;   % [T x p] z-scored design matrix (no intercept)
 results.predictor_labels = predictor_labels;
 results.model_name       = model_name;
 
