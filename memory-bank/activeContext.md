@@ -1,8 +1,10 @@
 # Active Context
 
 ## Current Focus
-FONDUTA package — stable. New interactive GLM viewer `fonduta.viz.view_glmfit` built and polished.
-Next session: ridge regression / HRF CV analysis (`ANALYSES/VISUAL/analysis_HRF_CV_ridge.m`).
+GLM viewer `fonduta.viz.view_glm` complete (3-column layout with design matrix panel).
+Next session:
+1. Add `uigetdir` to `view_glm.m` so the user can point it to any results directory at launch
+2. Start FIR / CV ridge regression (`ANALYSES/VISUAL/analysis_HRF_CV_ridge.m`)
 
 ## What Was Built: FONDUTA Package
 
@@ -38,7 +40,8 @@ FONDUTA/
 │   ├── +utils/
 │   │   └── extract_pc1_signals.m     ← globalPC1, nonBrainPC1, YhardGlobalPC1
 │   └── +viz/
-│       └── view_glmfit.m             ← Interactive eta2 viewer on Allen Atlas (NEW)
+│       ├── view_design_matrix.m      ← standalone design matrix viewer
+│       └── view_glm.m                ← 3-column interactive viewer (brain + design matrix)
 ├── utils_ext/
 │   └── BrunnerCodes/                 ← third-party registration tools (incl. interpolate3D.m)
 └── README.md
@@ -47,49 +50,37 @@ FONDUTA/
 **DELETED from FONDUTA:** `+fonduta/+io/+datapath/get_paths.m`
 (was wrongly hardcoding session paths; Datapath.m lives in each analysis directory)
 
-## fonduta.viz.view_glmfit — Interactive Viewer
+## fonduta.viz.view_glm — 3-column Interactive Viewer
 
 ### Usage
 ```matlab
-fonduta.viz.view_glmfit('ANALYSES/VISUAL/GLMSes33.mat')
+fonduta.viz.view_glm('ANALYSES/VISUAL/glm_run-142136.mat')
 ```
 
-### Architecture
-- Loads results file (`res.data`), loads atlas, maps atlas → subject space once via `atlas2individual`
-- Displays the functional slice (`anatomic.funcSlice(3)`) of the registered atlas histology
-- All display layers are `[nr × nc]` (subject-space functional slice size), pixel-aligned
-- Data is `flipud`-ed for correct dorsal-up orientation
+### Layout (1700×740 px)
+| Column | Position | Contents |
+|--------|----------|---------|
+| Left | 0–18% | Model listbox, Predictor listbox, η² slider, region label |
+| Middle | 19–64% | η² map on atlas histology, vertical colorbar (`eastoutside`) |
+| Right | 65–98% | Design matrix panel (1/3 figure width) |
 
-### Left-column controls
-| Panel | Widget | Function |
-|-------|--------|----------|
-| Model | listbox | select model; predictor list auto-rebuilds |
-| Predictor | listbox | select predictor from current model |
-| η² threshold | slider 0–0.5 (default 0.05) | hide eta2 voxels below threshold |
-| Region label | text (yellow) | shows name/acronym/ID on click |
+### Middle column — brain slice (updateDisplay)
+- `axis tight` + 5% margin expansion (same as original `view_glmfit`)
+- Layers: atlas histology (gray) → η² overlay (hot, 80% opacity) → green borders (35%)
+- Region border logic: morphological edges, IDs 0 & 1 suppressed
+- Click-to-identify: `onAxesClick` → `subRegions(y,x)` → `atlas.infoRegions.name/acr`
 
-### Display layers (updateDisplay)
-1. Atlas histology (gray): `cat(3, subHisto, subHisto, subHisto)` — grayscale RGB
-2. eta2 overlay (hot colormap, 80% opacity): `mdata.eta2(curPred,:,:)`, flipud, threshold applied
-3. Region borders (green, 35% opacity): morphological edges excluding IDs 0 & 1
+### Right column — design matrix (updateDesignMatrix)
+- `uipanel` with `uicontrol` text widget at top showing formula: `Y ~ pred1 + pred2 + ...`
+  - **Important:** formula uses `uicontrol` text (not `uipanel.Title`) to avoid TeX `~` interpretation
+  - `topMargin = 0.10` to leave room for formula widget above subplots
+- Stacked `axes` inside panel, one per predictor (`Xmodel` column), default MATLAB fonts
+- Updates when model changes (same callback as brain slice update)
 
-### Region border logic (IDs 0 and 1 suppressed)
-```matlab
-se           = strel('diamond', 1);
-subReg_named = subRegions;
-subReg_named(subReg_named <= 1) = 0;
-borders = (imdilate(subReg_named, se) ~= imerode(subReg_named, se)) & ...
-          (subReg_named > 0) & ...
-          (imerode(subReg_named, se) > 0);
-```
-
-### Title / labels
-- Title: `'Interpreter', 'none'` + `strrep(..., '_', ' ')` to avoid LaTeX rendering
-- Panel titles: `FontSize 14, FontWeight bold` for visibility on dark background
-
-### Click identification
-- `onAxesClick` reads `subRegions(y, x)` (already flipud)
-- Looks up `atlas.infoRegions.name{rId}` and `atlas.infoRegions.acr{rId}`
+### Key design notes
+- `axis tight` (NOT `axis image`) for brain slice — matches expected stretch from original viewer
+- `pDesign.Title` is static ("Design matrix"); formula is in `txtFormula.String`
+- Do NOT set custom FontSize on ylabel or axes ticks — use MATLAB defaults
 
 ## Analysis Orchestrator Architecture
 
@@ -156,6 +147,7 @@ res.bmask                                  % [nx x ny] brain mask
 - `allen_brain_atlas.mat` (70 MB) committed directly (under GitHub's 100 MB limit)
 
 ## Next Steps (next session)
-1. Continue `ANALYSES/VISUAL/analysis_HRF_CV_ridge.m` — ridge regression + HRF cross-validation
-2. Eventually build `ANALYSES/SHOCK/` using the same FONDUTA architecture
-3. Future: split FONDUTA into its own git repo; reference via `FONDUTA_PATH`
+1. Add `uigetdir` to `view_glm.m` — let user pick the results `.mat` file at launch (no hardcoded path)
+2. Start FIR / CV ridge regression in `ANALYSES/VISUAL/analysis_HRF_CV_ridge.m`
+3. Eventually build `ANALYSES/SHOCK/` using the same FONDUTA architecture
+4. Future: split FONDUTA into its own git repo; reference via `FONDUTA_PATH`

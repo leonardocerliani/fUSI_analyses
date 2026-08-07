@@ -1,15 +1,18 @@
-function atlas = load_atlas()
+function [atlas, atlasPath] = load_atlas()
 % fonduta.atlas.load_atlas  Load the Allen Brain Atlas from the FONDUTA package.
 %
 % Locates and loads allen_brain_atlas.mat relative to this file's location,
 % so it works regardless of where the FONDUTA directory is installed on disk.
 %
 % Usage:
-%   atlas = fonduta.atlas.load_atlas();
+%   atlas             = fonduta.atlas.load_atlas();
+%   [atlas, atlasPath] = fonduta.atlas.load_atlas();
 %
 % Output:
-%   atlas - struct with fields: .Regions, .Histology, .Vascular,
-%           .VoxelSize, .Direction, and others (see atlas .mat file)
+%   atlas     - struct with fields: .Regions, .Histology, .Vascular,
+%               .VoxelSize, .Direction, and others (see atlas .mat file)
+%   atlasPath - full path to the +atlas/ directory (useful for locating
+%               atlas.nii.gz, regions.nii.gz, vascular.nii.gz, etc.)
 %
 % See also: fonduta.atlas.build_brain_masks,
 %           fonduta.atlas.atlas2individual
@@ -22,8 +25,9 @@ function atlas = load_atlas()
               'Allen Brain Atlas not found at:\n  %s', atlasFile);
     end
 
-    tmp   = load(atlasFile);
-    field = fieldnames(tmp);
-    atlas = tmp.(field{1});
+    tmp      = load(atlasFile);
+    field    = fieldnames(tmp);
+    atlas    = tmp.(field{1});
+    atlasPath = thisDir;
 
 end

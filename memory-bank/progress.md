@@ -39,16 +39,23 @@ Full refactoring of `AnalysisFcn/fUSIMethodPaper/GLMVisual.m` into a clean, modu
 - `fonduta.io.datapath.get_paths.m` — wrongly hardcoded session paths, deleted
 - `atlas2individual.m` / `individual2atlas.m` — fixed `fonduta.utils.brunner.interpolate3D` → bare `interpolate3D` (from `utils_ext/BrunnerCodes/`)
 
-### Interactive GLM Viewer — fonduta.viz.view_glmfit
+### Interactive GLM Viewer — fonduta.viz.view_glm
 **Status: Complete**
 
-`FONDUTA/+fonduta/+viz/view_glmfit.m` — interactive MATLAB figure for exploring GLM results.
-- Displays `eta2` maps (hot colormap, threshold slider) on atlas histology (subject space)
-- Left column: Model listbox → Predictor listbox → η² threshold slider (0–0.5) → region label
-- Atlas borders: green, morphological edges (`strel('diamond',1)`), IDs 0 & 1 excluded
-- Click to identify Allen Atlas region (name / acronym / ID)
-- All display layers pixel-aligned in subject functional slice space (`flipud` for dorsal-up)
-- Panel titles: white, bold, 14pt
+`view_glmfit.m` superseded and deleted. Replaced by two new files:
+
+**`FONDUTA/+fonduta/+viz/view_design_matrix.m`** — standalone design matrix viewer.
+- Usage: `fonduta.viz.view_design_matrix(data.models.M7b_RunConv)`
+- Plots each column of `Xmodel` as stacked subplots with default MATLAB fonts/rotation
+
+**`FONDUTA/+fonduta/+viz/view_glm.m`** — 3-column interactive viewer.
+- Left column (0–18%): Model listbox → Predictor listbox → η² slider → region label
+- Middle column (19–64%): η² overlay on atlas histology, vertical colorbar, `axis tight`
+- Right column (65–98%): design matrix panel (stacked Xmodel subplots, 1/3 figure width)
+  - Panel title: "Design matrix"
+  - Formula text widget at top: `Y ~ pred1 + pred2 + ...` (updates on model change, avoids TeX `~` issue)
+  - Selecting a different model updates both brain slice and design matrix simultaneously
+- Figure: 1700×740 px
 
 ## In Progress
 - `ANALYSES/VISUAL/analysis_HRF_CV_ridge.m` — ridge regression + HRF cross-validation
