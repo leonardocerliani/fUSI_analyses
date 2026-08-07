@@ -89,12 +89,3 @@ axis(ax4, 'image'); colormap(ax4, hot); h2.AlphaData = 0.6;
 linkaxes([ax3 ax4])
 ax4.Visible = 'off';
 title(ax3, sprintf('Anatomic + Atlas Vascular overlay (slice %d)', funcSlice));
-
-%%
-
-nii = niftiread("vol_anatomic_2_atlas.nii.gz");
-
-sliceViewer(nii, 'Colormap','hot');
-
-orthosliceViewer(nii)
-
