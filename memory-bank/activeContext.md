@@ -1,10 +1,11 @@
 # Active Context
 
 ## Current Focus
-GLM viewer `fonduta.viz.view_glm` complete (3-column layout with design matrix panel).
+`fonduta.glm` module extended with `tstat`/`zstat`. `fonduta.viz.view_glm` extended with stat selector dropdown and enhanced click interaction.
+
 Next session:
-1. Add `uigetdir` to `view_glm.m` so the user can point it to any results directory at launch
-2. Start FIR / CV ridge regression (`ANALYSES/VISUAL/analysis_HRF_CV_ridge.m`)
+1. Start FIR / CV ridge regression (`ANALYSES/VISUAL/analysis_HRF_CV_ridge.m`)
+2. Add `uigetdir` to `view_glm.m` so user can pick the results `.mat` file at launch (no hardcoded path)
 
 ## What Was Built: FONDUTA Package
 
@@ -60,15 +61,28 @@ fonduta.viz.view_glm('ANALYSES/VISUAL/glm_run-142136.mat')
 ### Layout (1700×740 px)
 | Column | Position | Contents |
 |--------|----------|---------|
-| Left | 0–18% | Model listbox, Predictor listbox, η² slider, region label |
-| Middle | 19–64% | η² map on atlas histology, vertical colorbar (`eastoutside`) |
+| Left | 0–18% | Model listbox, Predictor listbox, Stat dropdown, Threshold slider, region/value label |
+| Middle | 19–64% | Stat map on atlas histology, vertical colorbar (black ticks) |
 | Right | 65–98% | Design matrix panel (1/3 figure width) |
 
+### Left column — stat selector
+- Dropdown (`popupmenu`) with options: `eta2 | R2 | betas | tstat | zstat`
+- Switching stat resets threshold slider to stat-specific default and updates range
+- `R2` disables the predictor listbox (model-level map)
+- Per-stat defaults: eta2→0.05, R2→0.05, betas→0 (no threshold), tstat/zstat→3.1
+
 ### Middle column — brain slice (updateDisplay)
-- `axis tight` + 5% margin expansion (same as original `view_glmfit`)
-- Layers: atlas histology (gray) → η² overlay (hot, 80% opacity) → green borders (35%)
-- Region border logic: morphological edges, IDs 0 & 1 suppressed
-- Click-to-identify: `onAxesClick` → `subRegions(y,x)` → `atlas.infoRegions.name/acr`
+- `axis tight` + 5% margin expansion
+- Layers: atlas histology (gray) → stat overlay (80% opacity) → green borders (35%)
+- Colormaps: `hot` for unsigned stats (eta2, R2); `bwr` (blue→white→red, local function) for signed (betas, tstat, zstat)
+- Threshold: unsigned → `value < thresh = NaN`; signed → `|value| < thresh = NaN`; symmetric clim for signed
+- Colorbar: `cb.Color = [0 0 0]` (black tick labels readable on white bg)
+- **Click interaction (`onAxesClick`):**
+  - Draws thin green crosshair (horizontal + vertical lines); previous crosshair deleted before drawing
+  - Region name/acronym/ID shown in bottom-left text
+  - Stat value shown: `tstat = 28.432,  p = 2e-05`
+  - p-value: `2 * normcdf(-|val|)` (large-df normal approximation); `p = 0.023` if ≥ 0.001, `p = 2e-05` (engineering) if smaller
+  - `lastDisplayMap` cached in `updateDisplay` for value readout on click
 
 ### Right column — design matrix (updateDesignMatrix)
 - `uipanel` with `uicontrol` text widget at top showing formula: `Y ~ pred1 + pred2 + ...`
@@ -81,6 +95,7 @@ fonduta.viz.view_glm('ANALYSES/VISUAL/glm_run-142136.mat')
 - `axis tight` (NOT `axis image`) for brain slice — matches expected stretch from original viewer
 - `pDesign.Title` is static ("Design matrix"); formula is in `txtFormula.String`
 - Do NOT set custom FontSize on ylabel or axes ticks — use MATLAB defaults
+- Note: with T~6600, t-stats of 20–40 and z = Inf are numerically expected (large df → normal approx is accurate)
 
 ## Analysis Orchestrator Architecture
 
@@ -113,7 +128,12 @@ result = fonduta.glm.ols(model_name, PDI3D, bmask, X, predictor_labels)
 ```
 - Accepts 3D `PDI.PDI [nx x ny x T]` directly
 - Z-scores X internally (callers pass raw signals)
-- Returns `.betas [p+1 x nx x ny]`, `.eta2 [p x nx x ny]`, `.R2 [nx x ny]`
+- Returns:
+  - `.betas [p+1 x nx x ny]` — parameter estimates (last = intercept)
+  - `.eta2  [p x nx x ny]`   — partial η² per predictor
+  - `.tstat [p x nx x ny]`   — t-statistic per predictor; `SE_j = sqrt(MSE * (X'X)^{-1}_{jj})`
+  - `.zstat [p x nx x ny]`   — z-score via `norminv(tcdf(t, df))`; numerically Inf for very large df (use t instead)
+  - `.R2    [nx x ny]`        — global model R²
 
 ## Results File Structure
 ```matlab

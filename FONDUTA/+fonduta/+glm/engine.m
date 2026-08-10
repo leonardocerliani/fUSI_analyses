@@ -20,6 +20,8 @@ function results = engine(model_name, Y, X, predictor_labels)
 %   results - struct with fields:
 %       .betas            [p+1 x V]  parameter estimates
 %       .eta2             [p x V]    partial eta² per predictor (excl. intercept)
+%       .tstat            [p x V]    t-statistic per predictor (excl. intercept)
+%       .zstat            [p x V]    z-statistic (from t via normal CDF) per predictor
 %       .R2               [1 x V]    global model R²
 %       .Xmodel           [T x p]    z-scored design matrix (no intercept column)
 %       .predictor_labels {1 x p+1}  predictor names (last entry = 'intercept')
@@ -74,10 +76,33 @@ for j = 1:p
     eta2(j, denom == 0) = 0;
 end
 
+%% T-statistics and z-statistics for each non-intercept predictor
+%  df = T - (p+1)  [one df per predictor + intercept]
+%  MSE   [1 x V]   = SSE_full / df
+%  SE_j  [1 x V]   = sqrt(MSE * (X'X)^{-1}_{jj})     scalar * MSE since Xfull is the same for all voxels
+%  t_j   [1 x V]   = betas(j,:) ./ SE_j
+%  z_j   [1 x V]   = norminv(tcdf(t_j, df))            signed z-score via normal quantile
+
+df     = T - (p + 1);                          % scalar
+MSE    = SSE_full / df;                        % [1 x V]
+XtXinv = inv(Xfull' * Xfull);                 % [p+1 x p+1] — same for all voxels
+
+tstat = zeros(p, V);
+zstat = zeros(p, V);
+
+for j = 1:p
+    SE          = sqrt(XtXinv(j,j) .* MSE);   % [1 x V]
+    t_j         = betas(j,:) ./ SE;           % [1 x V]
+    tstat(j,:)  = t_j;
+    zstat(j,:)  = norminv(tcdf(t_j, df));     % [1 x V]
+end
+
 %% Pack results
 results                  = struct();
 results.betas            = betas;
 results.eta2             = eta2;
+results.tstat            = tstat;
+results.zstat            = zstat;
 results.R2               = R2;
 results.Xmodel           = Xmodel;   % [T x p] z-scored design matrix (no intercept)
 results.predictor_labels = predictor_labels;

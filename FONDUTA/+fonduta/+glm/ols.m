@@ -16,6 +16,8 @@ function result = ols(model_name, PDI_3D, bmask, X, predictor_labels)
 %   result - struct with spatially mapped fields:
 %       .betas            [p+1 x nx x ny]  beta maps; last row = intercept
 %       .eta2             [p   x nx x ny]  partial eta² maps per predictor
+%       .tstat            [p   x nx x ny]  t-statistic maps per predictor
+%       .zstat            [p   x nx x ny]  z-statistic maps per predictor
 %       .R2               [nx  x ny]       global model R² map
 %       .predictor_labels {1 x p+1}        predictor names (last = 'intercept')
 %       .model_name       string

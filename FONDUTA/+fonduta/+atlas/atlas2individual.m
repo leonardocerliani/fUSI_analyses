@@ -57,7 +57,7 @@ function subAtlas = atlas2individual(atlas, anatomic, Transf, varargin)
 %
 % SEE ALSO
 %   fonduta.atlas.individual2atlas, fonduta.atlas.load_atlas,
-%   fonduta.atlas.build_brain_masks
+%   fonduta.atlas.build_slice_masks
 
 %% ---- Parse name-value options ----
 p = inputParser;

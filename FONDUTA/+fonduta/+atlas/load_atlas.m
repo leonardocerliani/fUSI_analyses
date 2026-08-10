@@ -14,7 +14,7 @@ function [atlas, atlasPath] = load_atlas()
 %   atlasPath - full path to the +atlas/ directory (useful for locating
 %               atlas.nii.gz, regions.nii.gz, vascular.nii.gz, etc.)
 %
-% See also: fonduta.atlas.build_brain_masks,
+% See also: fonduta.atlas.build_slice_masks,
 %           fonduta.atlas.atlas2individual
 
     thisDir   = fileparts(mfilename('fullpath'));

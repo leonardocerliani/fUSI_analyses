@@ -36,7 +36,7 @@
 %     .model_name                        string identifier
 %
 % Raw predictor time-series are stored in glmresult.predictors (stim_all,
-% wheel, globalPC1, etc.) — separate from the per-model Xmodel matrices.
+% stim_stationary, wheel, globalPC1, etc.) — separate from per-model Xmodel.
 %
 % Results are saved per session as glm_<runName>.mat, where runName is the
 % last path component of the session data directory (e.g. "run-142136").
@@ -46,8 +46,9 @@
 %   FONDUTA package  (set FONDUTA_PATH below)
 %   Datapath.m       (in this directory — provides session paths)
 %   +fn/             (in this directory):
-%       fn.build_stimulus_design, fn.build_behavior_regressors,
 %       fn.detect_running_trials
+%       fn.build_visual_predictors
+%       fn.build_wheel_signal
 
 %% =========================================================================
 %  CONFIGURATION — edit these parameters before running
@@ -71,7 +72,7 @@ hrfParams    = [2.4  8  0.8  0.9  6  0  16];
 %  LOAD DATASET PATHS  (via the local Datapath.m)
 %  =========================================================================
 
-[subDataPath, subAnatPath, resultPath] = Datapath(condition);
+[subDataPath, subAnatPath, resultPath] = fonduta.io.datapath.Datapath('VisualTest');
 
 fprintf('\n=================================================\n');
 fprintf(' analysis_visual_FONDUTA.m  |  condition: %s\n', condition);
@@ -98,17 +99,19 @@ for isub = 1:numel(subDataPath)
         % -----------------------------------------------------------------
         % 1. Load data
         % -----------------------------------------------------------------
-        tic
         [PDI, anatomic, Transf] = fonduta.io.datapath.load_session( ...
             subDataPath{isub}, subAnatPath{isub});
-        toc    
 
         % -----------------------------------------------------------------
         % 2. Running trial detection & session inclusion check
+        %    A session is usable only when it has both stationary AND running
+        %    trials — otherwise there is either no reference (stationary)
+        %    or experimental condition (running).
         % -----------------------------------------------------------------
-        [runningIdx, isIncluded] = fn.detect_running_trials(PDI, speedThresh, minDuration);
+        [stationaryTrialIdx, runningTrialIdx] = fn.detect_running_trials( ...
+            PDI, speedThresh, minDuration);
 
-        if ~isIncluded
+        if isempty(stationaryTrialIdx) || isempty(runningTrialIdx)
             continue
         end
 
@@ -117,7 +120,7 @@ for isub = 1:numel(subDataPath)
         % -----------------------------------------------------------------
         % 3. Brain masks
         % -----------------------------------------------------------------
-        [bmask, nonBrainMask, allen_regions] = fonduta.atlas.build_brain_masks(anatomic, Transf);
+        [bmask, nonBrainMask, allen_regions] = fonduta.atlas.build_slice_masks(anatomic, Transf);
 
         % -----------------------------------------------------------------
         % 4. HRF convolution operator
@@ -129,24 +132,31 @@ for isub = 1:numel(subDataPath)
         hrf        = @(ev) filter(hrf_kernel, 1, ev(:));
 
         % -----------------------------------------------------------------
-        % 5. Compute predictor signals
-        %    Functions below return raw signals (boxcars, wheel speed, PC1).
+        % 5. Build predictor signals
         %    HRF convolution is applied explicitly in each model block below
         %    using hrf(signal), making the model specification self-documenting.
+        %
+        %    Visual EVs:
+        %      stim_all        — boxcar for all visual trials (running + stationary)
+        %      stim_stationary — boxcar for stationary trials only
+        %
+        %    Wheel EVs:
+        %      wheel           — absolute wheel speed at scan frames
+        %      wheelSmooth     — Gaussian-smoothed wheel speed
+        %      runningFrameMask — logical mask; true at frames contaminated by
+        %                        running (including HRF tail ~16 s post-bout).
+        %                        Used to select stationary timepoints for M8.
         % -----------------------------------------------------------------
-        stimDesign = fn.build_stimulus_design(PDI, runningIdx);
-        behDesign  = fn.build_behavior_regressors(PDI, hrf_kernel, speedThresh);
-        tic
-        pc1Signals = fonduta.utils.extract_pc1_signals(PDI, bmask, nonBrainMask);
-        toc
+        [stim_all, stim_stationary] = fn.build_visual_predictors( ...
+            PDI, stationaryTrialIdx, runningTrialIdx);
 
-        % Unpack into short named variables for readable model specification
-        stim_all        = stimDesign.stimVisual + stimDesign.stimVisualRunning;
-        stim_stationary = stimDesign.stimVisual;
-        wheel           = behDesign.wheelSpeedAbs;
-        wheelSmooth     = behDesign.wheelSpeedSmooth;
-        globalPC1       = pc1Signals.globalPC1;
-        nonBrainPC1     = pc1Signals.nonBrainPC1;
+        [wheel, wheelSmooth, runningFrameMask] = fn.build_wheel_signal( ...
+            PDI, speedThresh, hrf_kernel);
+
+        pc1Signals = fonduta.utils.extract_pc1_signals(PDI, bmask, nonBrainMask);
+
+        globalPC1   = pc1Signals.globalPC1;
+        nonBrainPC1 = pc1Signals.nonBrainPC1;
 
         % -----------------------------------------------------------------
         % 6. Fit GLM models
@@ -227,18 +237,19 @@ for isub = 1:numel(subDataPath)
             {'wheel_hrf', 'stim_hrf', 'wheelSmooth', 'interaction_hrf'});
 
         %% --- M8: Stationary visual ---
-        %   GLM on stationary timepoints only + Pearson correlation reference maps
+        %   GLM fitted only on stationary timepoints (runningFrameMask == false).
+        %   Subsetting both data and predictor excludes running-contaminated
+        %   frames from the fit, giving a clean estimate of visual response.
         fprintf('  M8: Stationary visual\n');
-        includeSteady    = ~behDesign.steadyExcludeMask(:);
-        PDI_steady       = PDI.PDI(:, :, includeSteady);
-        M8_pred_steady   = hrf(stim_stationary(includeSteady));
+        stationaryFrames = ~runningFrameMask(:);
+        PDI_steady       = PDI.PDI(:, :, stationaryFrames);
+        M8_pred_steady   = hrf(stim_stationary(stationaryFrames));
 
         all_results.M8_SteadyVisual = fonduta.glm.ols( ...
             'M8_SteadyVisual', PDI_steady, bmask, ...
             M8_pred_steady, {'stim_stationary_hrf'});
 
         disp('Done fitting models')
-
 
         % Pearson correlation reference maps (need raw [T x V] matrices)
         Y        = fonduta.glm.prepare_data_matrix(PDI.PDI,    bmask);
@@ -261,16 +272,15 @@ for isub = 1:numel(subDataPath)
         glmresult.allen_regions = allen_regions;
 
         % Raw predictor time-series — the building blocks used by all models
-        glmresult.predictors.condMat           = stimDesign.condMat;
         glmresult.predictors.stim_all          = stim_all;
         glmresult.predictors.stim_stationary   = stim_stationary;
         glmresult.predictors.wheel             = wheel;
         glmresult.predictors.wheelSmooth       = wheelSmooth;
+        glmresult.predictors.runningFrameMask  = runningFrameMask;
         glmresult.predictors.globalPC1         = globalPC1;
         glmresult.predictors.nonBrainPC1       = nonBrainPC1;
-        glmresult.predictors.visualTrialIndex  = stimDesign.visualTrialIndex;
-        glmresult.predictors.runningTrialIndex = stimDesign.visualRunningTrialIndex;
-        glmresult.predictors.steadyExcludeMask = behDesign.steadyExcludeMask;
+        glmresult.predictors.stationaryTrialIdx = stationaryTrialIdx;
+        glmresult.predictors.runningTrialIdx   = runningTrialIdx;
 
         % Model results — each model contains .betas, .eta2, .R2,
         %                 .Xmodel (z-scored design matrix), .predictor_labels

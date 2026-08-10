@@ -8,6 +8,8 @@ function remapped = remap_results(glm_est, bmask)
 %   glm_est  - struct from fonduta.glm.engine(), with fields:
 %                .betas  [p+1 x V]
 %                .eta2   [p   x V]
+%                .tstat  [p   x V]
+%                .zstat  [p   x V]
 %                .R2     [1   x V]
 %   bmask    - [nx x ny] binary brain mask (same one used in prepare_data_matrix)
 %
@@ -15,6 +17,8 @@ function remapped = remap_results(glm_est, bmask)
 %   remapped - struct with spatially remapped fields:
 %                .betas  [p+1 x nx x ny]  beta maps (last slice = intercept)
 %                .eta2   [p   x nx x ny]  partial eta² maps per predictor
+%                .tstat  [p   x nx x ny]  t-statistic maps per predictor
+%                .zstat  [p   x nx x ny]  z-statistic maps per predictor
 %                .R2     [nx  x ny]        global R² map
 %                .Xmodel [T x p]           z-scored design matrix (no intercept), copied from glm_est
 %                .predictor_labels         copied from glm_est
@@ -26,8 +30,10 @@ function remapped = remap_results(glm_est, bmask)
 maskIdx  = find(bmask(:));
 
 remapped                  = struct();
-remapped.betas            = remap_array(glm_est.betas, maskIdx, nx, ny);
-remapped.eta2             = remap_array(glm_est.eta2,  maskIdx, nx, ny);
+remapped.betas            = remap_array(glm_est.betas,  maskIdx, nx, ny);
+remapped.eta2             = remap_array(glm_est.eta2,   maskIdx, nx, ny);
+remapped.tstat            = remap_array(glm_est.tstat,  maskIdx, nx, ny);
+remapped.zstat            = remap_array(glm_est.zstat,  maskIdx, nx, ny);
 remapped.R2               = squeeze(remap_array(glm_est.R2, maskIdx, nx, ny));
 remapped.Xmodel           = glm_est.Xmodel;   % [T x p] z-scored design matrix, passed through as-is
 remapped.predictor_labels = glm_est.predictor_labels;

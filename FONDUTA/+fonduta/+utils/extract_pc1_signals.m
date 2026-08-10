@@ -10,8 +10,8 @@ function pc1Signals = extract_pc1_signals(PDI, bmask, nonBrainMask)
 %
 % Inputs:
 %   PDI          - PDI data struct; must contain .PDI [nx x ny x nt]
-%   bmask        - [nx x ny] binary brain mask (from fonduta.atlas.build_brain_masks)
-%   nonBrainMask - [nx x ny] logical non-brain mask (from fonduta.atlas.build_brain_masks)
+%   bmask        - [nx x ny] binary brain mask (from fonduta.atlas.build_slice_masks)
+%   nonBrainMask - [nx x ny] logical non-brain mask (from fonduta.atlas.build_slice_masks)
 %
 % Output:
 %   pc1Signals - struct with fields:

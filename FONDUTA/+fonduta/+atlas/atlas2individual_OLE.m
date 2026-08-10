@@ -17,7 +17,7 @@ function subAtlas = atlas2individual(atlas, anatomic, Transf, dispFieldA2I)
 %       .Histology - atlas histology warped to subject space
 %       .Vascular  - atlas vascular map warped to subject space
 %
-% See also: fonduta.atlas.individual2atlas, fonduta.atlas.build_brain_masks
+% See also: fonduta.atlas.individual2atlas, fonduta.atlas.build_slice_masks
 
 if nargin < 4
     dispFieldA2I = [];

@@ -47,7 +47,7 @@ function result = individual2atlas(anatomic, atlas, Transf, varargin)
 %
 % SEE ALSO
 %   fonduta.atlas.atlas2individual, fonduta.atlas.load_atlas,
-%   fonduta.atlas.build_brain_masks
+%   fonduta.atlas.build_slice_masks
 
 %% ---- Parse inputs ----
 p = inputParser;
