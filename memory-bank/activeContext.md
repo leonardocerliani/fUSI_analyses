@@ -1,10 +1,12 @@
 # Active Context
 
 ## Current Focus
-`fonduta.glm` module extended with `tstat`/`zstat`. `fonduta.viz.view_glm` extended with stat selector dropdown and enhanced click interaction.
+Group FIR analysis complete (`ANALYSES/VISUAL/analysis_FIR_group.m`). The two visualization sections have been updated:
+- `plot_group_hrf`: bar chart of mean ± std HRF similarity per region (sorted descending), with console table. Workflow: run this section → pick region acronym from printed table.
+- `plot_group_hrf_region`: single-region deep-dive — individual traces + mean ± SE shaded band + canonical HRF overlaid. Set `target_acr` to the chosen acronym.
 
 Next session:
-1. Start FIR / CV ridge regression (`ANALYSES/VISUAL/analysis_HRF_CV_ridge.m`)
+1. Continue ridge regression / CV HRF analysis (`ANALYSES/VISUAL/analysis_HRF_CV_ridge.m`)
 2. Add `uigetdir` to `view_glm.m` so user can pick the results `.mat` file at launch (no hardcoded path)
 
 ## What Was Built: FONDUTA Package
@@ -168,6 +170,6 @@ res.bmask                                  % [nx x ny] brain mask
 
 ## Next Steps (next session)
 1. Add `uigetdir` to `view_glm.m` — let user pick the results `.mat` file at launch (no hardcoded path)
-2. Start FIR / CV ridge regression in `ANALYSES/VISUAL/analysis_HRF_CV_ridge.m`
+2. Continue ridge regression / CV HRF analysis in `ANALYSES/VISUAL/analysis_HRF_CV_ridge.m`
 3. Eventually build `ANALYSES/SHOCK/` using the same FONDUTA architecture
 4. Future: split FONDUTA into its own git repo; reference via `FONDUTA_PATH`

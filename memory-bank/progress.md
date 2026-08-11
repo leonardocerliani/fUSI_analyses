@@ -80,8 +80,50 @@ Full refactoring of `AnalysisFcn/fUSIMethodPaper/GLMVisual.m` into a clean, modu
 - Bottom-left shows: region name, acronym, ID + `tstat = 28.432,  p = 2e-05`
 - p-value via normal approximation `2*normcdf(-|t|)`; engineering notation for p < 0.001
 
-## In Progress
-- `ANALYSES/VISUAL/analysis_HRF_CV_ridge.m` — ridge regression + HRF cross-validation
+## Completed (continued)
+
+### Group FIR Analysis — `ANALYSES/VISUAL/analysis_FIR_group.m`
+**Status: Complete**
+
+Two-stage FIR analysis pipeline:
+
+1. **Main loop** (Part 1): loops over all subjects; per subject runs M8 standard GLM → keeps only regions with η² > threshold → fits FIR design matrix (K lagged deltas) on ROI-averaged signals → stores per-region HRF betas and Pearson r with canonical HRF in `regional_hrf` struct → saves `.mat`.
+
+2. **`plot_group_hrf`** section: loads results, computes mean ± std similarity for every region, prints sorted console table (✓ marks regions above `sim_thresh`), then plots a **bar chart** (one bar per region sorted descending) with error bars = ±std and red dashed threshold line. Subcount (`n=`) annotated above each bar. Workflow: run → pick acronym from table or bar chart.
+
+3. **`plot_group_hrf_region`** section: loads results, takes `target_acr` string, prints per-subject similarity table, plots individual HRF traces (semi-transparent) + mean ± SE shaded band + canonical HRF (dashed black, amplitude-matched).
+
+Saved output: `FIR_group_eta2_<thresh>_HRF_<dur>sec.mat`  
+Fields: `regional_hrf`, `atlas`, `hrfParams`, `eta2_thresh_val`, `HRF_duration_s`, `TR_mean`, `lag_times_s`, `K`, `use_suprathreshold_voxels`
+
+## Completed (continued)
+
+### FIR Group Analysis — improvements (session 2026-08-11)
+
+**`analysis_FIR_group.m` improvements:**
+- Added `min_stationary_trials = 3` parameter; `continue` guard fires immediately after `detect_running_trials` if insufficient stationary trials → eliminates rank-deficient GLM warnings
+- Per-subject `--- Sub X / N ---` separator printed at start of each loop iteration
+- `n_subject_thresh` parameter added to `plot_group_hrf` bar chart; regions with fewer subjects are filtered before sorting/plotting
+- `summary_stat` parameter in `plot_group_hrf_region`: `'mean'` → mean±SE, `'median'` → median±MAD (MATLAB `mad(H,1,2)`)
+- Both `plot_group_hrf_region` sections (FIR and ridge) now plot two canonical HRF references: Chen2023 (black dashed) and Chaoyi (dark red dashed `[0.6 0.2 0.1]`), each normalized to its own peak then scaled to `max(abs(mu))`
+
+### Ridge + LOO-CV HRF Analysis — `ANALYSES/VISUAL/analysis_ridge_loo_group.m`
+**Status: Complete (tested, running successfully)**
+
+Same pipeline as `analysis_FIR_group.m` but replaces OLS with ridge regression + leave-one-out cross-validation for λ selection.
+
+**Key design:**
+- LOO is over **trials** (not timepoints): `cvpartition(nTrials, 'LeaveOut')`
+- Test frames = response window of held-out trial (onset : onset+K-1)
+- Training frames = all timepoints NOT in the test window
+- `lambda_grid = logspace(-2, 4, 20)` — 20 candidates; best λ selected per region per subject
+- Final fit: `ridge(y, X_fir, lambda_best, 0)` (flag=0 = original-space betas)
+- **MATLAB gotcha**: `ridge(..., 0)` returns `[K+1 × 1]` with intercept as first element → `B = B(2:end)` applied everywhere
+- `T_safe = min(T, T_frames)` alignment before CV loop (stim vector and PDI may differ by 1 frame)
+- Y_roi is z-scored before fitting (consistent with `engine.m`)
+- Stores `.lam [1 × nSubs]` per region (best λ per subject) in addition to `.hrf` and `.sim`
+- Output: `ridge_cv_group_eta2_<thresh>_HRF_<dur>sec.mat`
+- Visualization sections identical to `analysis_FIR_group.m` (bar chart + per-region deep-dive, green color scheme)
 
 ## Pending
 - Build `ANALYSES/SHOCK/` pipeline using the same FONDUTA architecture
