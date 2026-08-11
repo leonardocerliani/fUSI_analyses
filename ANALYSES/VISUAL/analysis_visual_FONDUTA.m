@@ -251,7 +251,7 @@ for isub = 1:numel(subDataPath)
 
         disp('Done fitting models')
 
-        % Pearson correlation reference maps (need raw [T x V] matrices)
+        %% --- Pearson correlation reference maps (need raw [T x V] matrices) ---
         Y        = fonduta.glm.prepare_data_matrix(PDI.PDI,    bmask);
         Y_steady = fonduta.glm.prepare_data_matrix(PDI_steady, bmask);
 

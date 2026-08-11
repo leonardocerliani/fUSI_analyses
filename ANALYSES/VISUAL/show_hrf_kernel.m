@@ -6,10 +6,12 @@ TR         = 0.2;          % TR (seconds)
 
 
 % Compute the Chaoyi HRF kernel
+%   [delay_response, delay_undershoot, disp_response, disp_undershoot, ratio, onset, kernel_length_s]
 chaoyi_hrfParams = [2.4 8 0.8 0.9 6 0 16];
 [chaoyi_hrf_kernel, p_chaoyi] = fonduta.signal.hrf(TR, chaoyi_hrfParams);
 
 % Compute the Chen 2023 HRF kernel
+%   [delay_response, delay_undershoot, disp_response, disp_undershoot, ratio, onset, kernel_length_s]
 chen2023_hrfParams = [4.95 8.69 1.1 1.1 1.8 0 32];
 [chen2023_hrf_kernel, p_chen2023] = fonduta.signal.hrf(TR, chen2023_hrfParams);
 
