@@ -58,7 +58,7 @@ FONDUTA_PATH = '/data00/leonardo/github/fUSI_analyses/FONDUTA';
 addpath(genpath(FONDUTA_PATH));
 
 condition    = 'VisualTest';   % experiment condition (passed to Datapath)
-resultFolder = 'LC';           % output subfolder name
+resultFolder = condition;           % output subfolder name
 
 speedThresh  = 35;     % wheel speed threshold (counts/s) for running classification
 minDuration  = 0.2;    % min running bout duration (s) to classify a trial as running
@@ -72,7 +72,10 @@ hrfParams    = [2.4  8  0.8  0.9  6  0  16];
 %  LOAD DATASET PATHS  (via the local Datapath.m)
 %  =========================================================================
 
-[subDataPath, subAnatPath, resultPath] = fonduta.io.datapath.Datapath('VisualTest');
+% NB: the latter argument would be resultPath in Chaoyi script, but we want
+% to change it, so we pass it manually afterwards
+[subDataPath, subAnatPath, ~] = fonduta.io.datapath.Datapath('VisualTest');
+resultPath = '/data06/fUSIMethodsPaper/Data_analysis/LC'
 
 fprintf('\n=================================================\n');
 fprintf(' analysis_visual_FONDUTA.m  |  condition: %s\n', condition);
