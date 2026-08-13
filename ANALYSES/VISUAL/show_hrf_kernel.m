@@ -44,3 +44,6 @@ tmax_chen2023 = (idx_chen2023 - 1) * TR;
 
 fprintf('Chaoyi HRF maximum: %.3f at %.2f s\n', max_chaoyi, tmax_chaoyi);
 fprintf('Chen 2023 HRF maximum: %.3f at %.2f s\n', max_chen2023, tmax_chen2023);
+
+
+

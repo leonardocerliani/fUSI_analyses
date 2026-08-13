@@ -31,7 +31,7 @@ resultPath = pwd;
 % We want to estimate the HRF only in regions where we expect to have an
 % effect (there are 500+ regions...), therefore we first do a standard GLM
 % with the hrf from Chen2023 and we retain regions with an eta2 > threshold
-eta2_thresh_val = 0.01;
+eta2_thresh_val = 0.05;
 
 % How many seconds to model after onset (10-20)
 HRF_duration_s = 10;   
