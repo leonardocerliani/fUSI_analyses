@@ -22,6 +22,8 @@ Note that _not the time course of all trials ends in the average and related cal
 - A subject is included only if there are more than 3 stationary trials.
 - A brain region is included only if it contains at least 5 voxels with supra-threshold eta2
 
+Finally, before estimating the average and the correlation with the canonical HRF, all the time courses are smoothed with a sliding window of 5 sec to attenuate the noise. This reflects the procedure used in Lambers 2000 and Chen 2023 to estimate the canonical HRF.
+
 <br>
 
 **VERY IMPORTANT: IN ORDER TO RUN THESE SCRIPTS THE USER SHOULD HAVE ALREADY CARRIED OUT THE BASIC GLM ANALYSIS** which is implemented in the `analysis_visual_FONDUTA.m`

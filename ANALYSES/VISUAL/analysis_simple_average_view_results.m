@@ -26,10 +26,10 @@ addpath(genpath('.'));
 %% Part 2 — Similarity table
 
 % --- parameters ---
-mat_file         = fullfile(pwd, 'results_simple_average', 'simple_avg_M8_SteadyVisual_eta003.mat');
-% mat_file         = fullfile(pwd, 'results_simple_average', 'simple_avg_M1_StimOnly_eta003.mat');
+% mat_file         = fullfile(pwd, 'results_simple_average', 'simple_avg_M8_SteadyVisual_eta003.mat');
+mat_file         = fullfile(pwd, 'results_simple_average', 'simple_avg_M1_StimOnly_eta003.mat');
 
-sim_thresh       = 0.7;   % only show regions with Chaoyi r >= this
+sim_thresh       = 0.85;   % only show regions with Chaoyi r >= this
 n_subject_thresh = 10;     % only show regions present in >= this many subjects
 smooth_win_s     = 5;     % moving-average smoothing window in seconds (0 = off)
 % ------------------
@@ -119,7 +119,7 @@ fprintf('\n%d / %d regions with Chaoyi mean r >= %.2f  (marked v)\n', ...
 mat_file         = fullfile(pwd, 'results_simple_average', 'simple_avg_M8_SteadyVisual_eta003.mat');
 % mat_file         = fullfile(pwd, 'results_simple_average', 'simple_avg_M1_StimOnly_eta003.mat');
 
-target_acr   = 'RSPv';    % Allen acronym — pick from Part 2 table
+target_acr   = 'LGv';    % Allen acronym — pick from Part 2 table
 smooth_win_s = 5;         % seconds (0 = off)
 % ------------------
 
