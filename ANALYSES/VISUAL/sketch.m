@@ -10,6 +10,7 @@ glm_results_path = fullfile(resultPath, resultFolder)
 
 glm_results = load(fullfile(glm_results_path, 'glm_run-163615.mat')).data;
 
+
 % % see all the nested fields at once
 % fonduta.utils.tree_struct(glm_results)
 
@@ -68,6 +69,14 @@ glm_results.models
 %                M7b_RunConv: [1x1 struct]
 %            M8_SteadyVisual: [1x1 struct]
 
+% To see all the predictors of all models you can use the following:
+model_names = fieldnames(glm_results.models);
+
+for i = 1:numel(model_names)
+    model = model_names{i};
+    fprintf('\n%s:\n', model);
+    disp(glm_results.models.(model).predictor_labels)
+end
 
 
 % Differently from the .predictors field, the .models.(model).Xmodel 
@@ -111,9 +120,30 @@ fonduta.viz.view_image(anatomic_funcslice, eta2, 3)
 
 
 
+%% 
+
+figure
+subplot(2,1,1)
+plot(glm_results.predictors.stim_stationary, 'r')
+title('stim\_stationary')
+
+subplot(2,1,2)
+plot(glm_results.models.M8_SteadyVisual.Xmodel, 'b')
+title('M8 SteadyVisual')
 
 
+figure
+subplot(2,1,1)
+plot(glm_results.predictors.stim_all, 'r')
+title('stim\_all')
 
+subplot(2,1,2)
+plot(glm_results.models.M7b_RunConv.Xmodel(:,2), 'b')
+title('M8 SteadyVisual')
 
+length(glm_results.predictors.stim_all)
+length(glm_results.models.M7b_RunConv.Xmodel(:,2))
 
+length(glm_results.predictors.stim_stationary)
+length(glm_results.models.M8_SteadyVisual.Xmodel)
 

@@ -1,382 +1,288 @@
-%% Load data and define parameters
+function analysis_simple_average(glm_results_path, model_name, opts)
+% analysis_simple_average  Group event-related averaging using saved GLM results.
+
+%
+% Reuses per-session GLM result files (glm_*.mat, saved by
+% analysis_visual_FONDUTA.m) to avoid re-fitting a GLM per subject.
+% Masks, region labels, eta2 maps, and predictor boxcars all come directly
+% from those files.  The only data still loaded per subject is the raw PDI
+% time-series (needed for epoch extraction).
+%
+% USAGE:
+%   analysis_simple_average(glm_results_path, model_name)
+%   analysis_simple_average(glm_results_path, model_name, opts)
+
+%
+%   glm_results_path  folder with glm_*.mat files
+%   model_name        e.g. 'M8_SteadyVisual', 'M1_StimOnly', 'M7b_RunConv'
+%   opts              optional struct with any of:
+%       .eta2_thresh_val       (default 0.03)
+%       .before_stim_onset     (default 5  s)
+%       .after_stim_offset     (default 20 s)
+%       .min_stationary_trials (default 3)
+%       .min_active_voxels     (default 5)
+%       .resultPath            (default pwd)
+%
+% OUTPUT:
+%   <resultPath>/results_simple_average/simple_avg_<model_name>_<eta_str>.mat
+%   e.g. simple_avg_M8_SteadyVisual_eta003.mat  for eta2_thresh_val = 0.03
+%
+% BATCH EXAMPLE:
+%   glm_path = '/data06/fUSIMethodsPaper/Data_analysis/LC/VisualTest';
+%   models   = {'M1_StimOnly','M7b_RunConv','M8_SteadyVisual'};
+%   for k = 1:numel(models)
+%       analysis_simple_average(glm_path, models{k});
+
+%   end
+%
+% To view available model names:
+%   tmp_files = dir(fullfile(glm_path, 'glm_*.mat'));
+%   tmp = load(fullfile(tmp_files(1).folder, tmp_files(1).name));
+%   fieldnames(tmp.data.models)
+%
+% For interactive plotting of the results, use:
+%   analysis_simple_average_view_results.m
+
+%
+% =========================================================================
+% *** IMPORTANT — M8 time-axis gotcha ***
+% =========================================================================
+% analysis_visual_FONDUTA.m fits M8_SteadyVisual on a TEMPORALLY SUBSAMPLED
+% dataset (running frames + ~16 s HRF tail removed before fitting):
+%
+%     stationaryFrames = ~runningFrameMask(:);
+%     PDI_steady       = PDI.PDI(:, :, stationaryFrames);
+%
+% => glm.models.M8_SteadyVisual.Xmodel  length ~4571  (SUBSAMPLED axis)
+%    glm.predictors.stim_stationary      length  6028  (FULL, matches PDI)
+%
+% Using Xmodel to find trial onsets would silently misalign every epoch.
+% We ALWAYS use glm.predictors.stim_all / stim_stationary for onset detection.
+%
+% Model-dependent boxcar choice:
+%   model_name contains 'Steady' -> use stim_stationary (stationary trials only)
+%   any other model              -> use stim_all (all trials)
+% =========================================================================
+
+% ---- no arguments: print usage and return ----
+if nargin == 0
+    help analysis_simple_average
+
+    return
+end
+
+if nargin < 3; opts = struct(); end
+
+% ---- paths and packages ----
 FONDUTA_PATH = '/data00/leonardo/github/fUSI_analyses/FONDUTA';
 addpath(genpath(FONDUTA_PATH));
-addpath(genpath('.'))
+addpath(genpath(fileparts(mfilename('fullpath'))));
 
 atlas = fonduta.atlas.load_atlas();
 
-speedThresh  = 35;     % wheel speed threshold (counts/s) for running classification
-minDuration  = 0.2;    % min running bout duration (s) to classify a trial as running
-
-% SPM-style double-gamma HRF parameters:
-%   [delay_response, delay_undershoot, disp_response, disp_undershoot, ratio, onset, kernel_length_s]
-% Chaoyi
 chaoyi_hrfParams    = [2.4  8  0.8  0.9  6  0  16];
-
-% Chen2023
 chen2023_hrfParams  = [4.95 8.69 1.1 1.1 1.8 0 32];
 
-[subDataPath, subAnatPath, ~] = fonduta.io.datapath.Datapath('VisualTest');
-resultPath = pwd;
+% ---- fill default opts ----
+if ~isfield(opts, 'eta2_thresh_val');       opts.eta2_thresh_val       = 0.03; end
+if ~isfield(opts, 'before_stim_onset');     opts.before_stim_onset     = 5;    end
+if ~isfield(opts, 'after_stim_offset');     opts.after_stim_offset     = 20;   end
+if ~isfield(opts, 'min_stationary_trials'); opts.min_stationary_trials = 3;    end
+if ~isfield(opts, 'min_active_voxels');     opts.min_active_voxels     = 5;    end
+if ~isfield(opts, 'resultPath');            opts.resultPath            = pwd;   end
 
+eta2_thresh_val       = opts.eta2_thresh_val;
+before_stim_onset     = opts.before_stim_onset;
+after_stim_offset     = opts.after_stim_offset;
+min_stationary_trials = opts.min_stationary_trials;
+min_active_voxels     = opts.min_active_voxels;
+resultPath            = opts.resultPath;
 
-%% Part 1 — Group simple-average analysis (TIME INTENSIVE!)
+% ---- build output filename ----
+eta_str   = sprintf('eta%03d', round(eta2_thresh_val * 100));
+out_dir   = fullfile(resultPath, 'results_simple_average');
+out_fname = fullfile(out_dir, sprintf('simple_avg_%s_%s.mat', model_name, eta_str));
 
-% --- parameters ---
-eta2_thresh_val       = 0.03;  % only voxels with eta2 ≥ this for time course extraction
-before_stim_onset     = 5;     % seconds before stimulus onset
-after_stim_offset     = 15;    % seconds after stimulus offset
-min_stationary_trials = 3;     % only subs with at least this number of stationary trials
-min_active_voxels     = 5;     % only regions with ≥ min_active_voxels
-% ------------------
+% ---- check if results already exist ----
+if isfile(out_fname)
+    fprintf('\n[analysis_simple_average] Results already exist:\n');
 
-run_group_analysis(subDataPath, subAnatPath, atlas, ...
-    chaoyi_hrfParams, chen2023_hrfParams, ...
-    speedThresh, minDuration, ...
-    eta2_thresh_val, before_stim_onset, after_stim_offset, ...
-    min_stationary_trials, min_active_voxels, resultPath);
-
-
-%% Part 2 — Correlation table
-
-% --- parameters ---
-mat_file         = 'analysis_simple_average_eta003.mat';
-sim_thresh       = 0.7;  % thr for similarity with the apriori HRF
-n_subject_thresh = 5;   % show results only when the average HRF was calculate on n_subject_thresh subs
-smooth_win_s     = 5;    % moving-average window in seconds (0 = no smoothing)
-% ------------------
-
-clc
-plot_similarity_table(mat_file, sim_thresh, n_subject_thresh, smooth_win_s);
-
-
-%% Part 3 — Single region plot
-
-% --- parameters ---
-mat_file     = 'analysis_simple_average_eta003.mat';
-target_acr   = 'RSPd';   % Allen acronym (choose from Part 2 table)
-smooth_win_s = 5;           % moving-average window in seconds (0 = no smoothing)
-% ------------------
-
-plot_region(mat_file, target_acr, smooth_win_s);
-
-
-%%
-
-% =========================================================================
-% LOCAL FUNCTIONS
-% =========================================================================
-
-function run_group_analysis(subDataPath, subAnatPath, atlas, ...
-        chaoyi_hrfParams, chen2023_hrfParams, ...
-        speedThresh, minDuration, ...
-        eta2_thresh_val, before_stim_onset, after_stim_offset, ...
-        min_stationary_trials, min_active_voxels, resultPath)
-
-    nSubs = numel(subDataPath);
-
-    regional_avg   = struct();
-    TR_all         = nan(1, nSubs);
-    stim_dur_s_all = nan(1, nSubs);
-
-    wb = waitbar(0, 'Running simple-average analysis...', 'Name', 'Group Simple Avg');
-
-    for isub = 1:nSubs
-
-        fprintf('\n%s\n--- Sub %d / %d ---\n%s\n', repmat('-',1,40), isub, nSubs, repmat('-',1,40));
-        waitbar(isub/nSubs, wb, sprintf('Subject %d / %d', isub, nSubs));
-
-        try
-            [PDI, anatomic, Transf] = fonduta.io.datapath.load_session( ...
-                subDataPath{isub}, subAnatPath{isub});
-
-            TR = mean(diff(PDI.time));
-            TR_all(isub) = TR;
-
-            stim_dur_s = mean(PDI.stimInfo.endTime - PDI.stimInfo.startTime);
-            stim_dur_s_all(isub) = stim_dur_s;
-            fprintf('  stim_dur_s = %.2f s\n', stim_dur_s);
-
-            [stationaryTrialIdx, runningTrialIdx] = fn.detect_running_trials( ...
-                PDI, speedThresh, minDuration);
-
-            if numel(stationaryTrialIdx) < min_stationary_trials
-                fprintf('Sub %d: only %d stationary trial(s) — skipping.\n', ...
-                    isub, numel(stationaryTrialIdx));
-                continue
-            end
-
-            [bmask, ~, allen_regions] = fonduta.atlas.build_slice_masks(anatomic, Transf);
-
-            [stim_all, stim_stationary] = fn.build_visual_predictors( ...
-                PDI, stationaryTrialIdx, runningTrialIdx);
-
-            hrf_kernel = fonduta.signal.hrf(TR, chaoyi_hrfParams);
-            hrf        = @(ev) filter(hrf_kernel, 1, ev(:));
-
-            [~, ~, runningFrameMask] = fn.build_wheel_signal(PDI, speedThresh, hrf_kernel);
-
-            stationaryFrames = ~runningFrameMask(:);
-            PDI_steady       = PDI.PDI(:, :, stationaryFrames);
-            M8_pred_steady   = hrf(stim_stationary(stationaryFrames));
-
-            glm_std = fonduta.glm.ols( ...
-                'M8_SteadyVisual', PDI_steady, bmask, ...
-                M8_pred_steady, {'stim_stationary_hrf'});
-
-            eta2      = squeeze(glm_std.eta2);
-            eta2_mask = (eta2 > eta2_thresh_val) & (bmask == 1);
-
-            active_region_ids = unique(allen_regions(eta2_mask));
-            active_region_ids(active_region_ids <= 1) = [];
-
-            valid = false(size(active_region_ids));
-            for ri = 1:numel(active_region_ids)
-                n_vox    = sum(allen_regions(:) == active_region_ids(ri) & eta2_mask(:));
-                valid(ri) = n_vox >= min_active_voxels;
-            end
-            active_region_ids = active_region_ids(valid);
-
-            if isempty(active_region_ids)
-                fprintf('Sub %d: no regions with >= %d active voxels — skipping.\n', ...
-                    isub, min_active_voxels);
-                continue
-            end
-
-            T             = size(PDI.PDI, 3);
-            stim_frames   = round(stim_dur_s / TR);
-            before_frames = round(before_stim_onset / TR);
-            after_frames  = round(after_stim_offset / TR);
-            W             = before_frames + stim_frames + after_frames;
-
-            [~, onset_frames] = arrayfun(@(x) min(abs(x - PDI.time)), ...
-                PDI.stimInfo.startTime(stationaryTrialIdx), 'UniformOutput', true);
-            nTrials = numel(stationaryTrialIdx);
-
-            nROI = numel(active_region_ids);
-
-            for r = 1:nROI
-                roi_supra = (allen_regions == active_region_ids(r)) & eta2_mask;
-                vox       = reshape(PDI.PDI, [], T);
-                y_roi     = mean(vox(roi_supra(:), :), 1)';
-
-                epoch_mat = [];
-
-                for tr = 1:nTrials
-                    t_start = onset_frames(tr) - before_frames;
-                    t_end   = t_start + W - 1;
-
-                    if t_start < 1 || t_end > T
-                        continue
-                    end
-
-                    epoch    = y_roi(t_start : t_end);
-                    baseline = mean(epoch(1:before_frames));
-                    epoch    = epoch - baseline;
-
-                    epoch_mat = [epoch_mat, epoch(:)];   %#ok<AGROW>
-                end
-
-                if isempty(epoch_mat)
-                    continue
-                end
-
-                tc_sub = mean(epoch_mat, 2);
-
-                rId = active_region_ids(r);
-                if rId >= 1 && rId <= numel(atlas.infoRegions.acr)
-                    acr  = atlas.infoRegions.acr{rId};
-                    name = atlas.infoRegions.name{rId};
-                else
-                    acr  = sprintf('ID_%d', rId);
-                    name = acr;
-                end
-                field = matlab.lang.makeValidName(acr);
-
-                if ~isfield(regional_avg, field)
-                    regional_avg.(field).tc   = tc_sub;
-                    regional_avg.(field).acr  = acr;
-                    regional_avg.(field).name = name;
-                else
-                    regional_avg.(field).tc   = [regional_avg.(field).tc, tc_sub];
-                end
-            end
-
-            fprintf('Sub %d: %d active regions\n', isub, nROI);
-
-        catch ME
-            fprintf('Sub %d: ERROR — %s\n', isub, ME.message);
-            fprintf('  In: %s  line %d\n', ME.stack(1).name, ME.stack(1).line);
-        end
-    end
-
-    close(wb);
-
-    TR_mean       = nanmean(TR_all);
-    stim_dur_s    = nanmean(stim_dur_s_all);
-    stim_frames   = round(stim_dur_s / TR_mean);
-    before_frames = round(before_stim_onset / TR_mean);
-    after_frames  = round(after_stim_offset / TR_mean);
-    W             = before_frames + stim_frames + after_frames;
-    t_window      = ((0:W-1) - before_frames) * TR_mean;
-
-    out_fname = fullfile(resultPath, 'analysis_simple_average.mat');
-    save(out_fname, 'regional_avg', 'atlas', ...
-        'chaoyi_hrfParams', 'chen2023_hrfParams', ...
-        'eta2_thresh_val', 'TR_mean', 'stim_dur_s', ...
-        'before_stim_onset', 'after_stim_offset', ...
-        'W', 't_window', '-v7.3');
-
-    fprintf('\nResults saved to: %s\n', out_fname);
+    fprintf('  %s\n\n', out_fname);
+    fprintf('Delete the file to re-run, or change eta2_thresh_val.\n\n');
+    return
 end
 
+if ~exist(out_dir, 'dir'); mkdir(out_dir); end
 
-function plot_similarity_table(mat_file, sim_thresh, n_subject_thresh, smooth_win_s)
+% ---- run the analysis ----
+glm_files = dir(fullfile(glm_results_path, 'glm_*.mat'));
+nSubs     = numel(glm_files);
 
-    S = load(mat_file);
+if nSubs == 0
+    error('No glm_*.mat files found in:\n  %s', glm_results_path);
+end
 
-    smooth_win_frames = max(1, round(smooth_win_s / S.TR_mean));
+fprintf('\n%s\n', repmat('=',1,60));
+fprintf(' analysis_simple_average\n');
 
-    stim_frames_ap   = round(S.stim_dur_s / S.TR_mean);
-    before_frames_ap = round(S.before_stim_onset / S.TR_mean);
-    after_frames_ap  = round(S.after_stim_offset / S.TR_mean);
-    W_ap             = before_frames_ap + stim_frames_ap + after_frames_ap;
-    boxcar_ap        = [zeros(before_frames_ap,1); ones(stim_frames_ap,1); zeros(after_frames_ap,1)];
+fprintf(' model  : %s\n', model_name);
+fprintf(' eta2 >= : %.3f\n', eta2_thresh_val);
+fprintf(' nSubs  : %d\n', nSubs);
+fprintf('%s\n\n', repmat('=',1,60));
 
-    hrf_ch  = fonduta.signal.hrf(S.TR_mean, S.chaoyi_hrfParams);
-    ap_ch   = conv(boxcar_ap, hrf_ch);  ap_ch  = ap_ch(1:W_ap);  ap_ch  = ap_ch  / max(ap_ch);
+regional_avg   = struct();
+TR_all         = nan(1, nSubs);
+stim_dur_s_all = nan(1, nSubs);
 
-    hrf_c23 = fonduta.signal.hrf(S.TR_mean, S.chen2023_hrfParams);
-    ap_c23  = conv(boxcar_ap, hrf_c23); ap_c23 = ap_c23(1:W_ap); ap_c23 = ap_c23 / max(ap_c23);
+is_steady_model = contains(model_name, 'Steady', 'IgnoreCase', true);
 
-    region_fields  = fieldnames(S.regional_avg);
-    nRegions       = numel(region_fields);
-    acr_list       = cell(nRegions,1);
-    name_list      = cell(nRegions,1);
-    nsub_list      = zeros(nRegions,1);
-    mean_sim_ch    = zeros(nRegions,1);  std_sim_ch  = zeros(nRegions,1);
-    mean_sim_c23   = zeros(nRegions,1);  std_sim_c23 = zeros(nRegions,1);
+wb = waitbar(0, sprintf('Simple-avg: %s', model_name), 'Name', 'Group Simple Avg');
 
-    for fi = 1:nRegions
-        reg = S.regional_avg.(region_fields{fi});
-        TC  = reg.tc;
-        nS  = size(TC, 2);
-        acr_list{fi}  = reg.acr;
-        name_list{fi} = reg.name;
-        nsub_list(fi) = nS;
+for isub = 1:nSubs
 
-        if nS < n_subject_thresh || size(TC,1) ~= W_ap
-            mean_sim_ch(fi)  = NaN;  std_sim_ch(fi)  = NaN;
-            mean_sim_c23(fi) = NaN;  std_sim_c23(fi) = NaN;
+    fprintf('\n%s\n--- Sub %d / %d ---\n%s\n', ...
+        repmat('-',1,40), isub, nSubs, repmat('-',1,40));
+    waitbar(isub/nSubs, wb, sprintf('Subject %d / %d', isub, nSubs));
+
+    try
+        glm = load(fullfile(glm_files(isub).folder, glm_files(isub).name)).data;
+
+        % --- from saved GLM result --- no recomputation needed ---
+        bmask         = glm.bmask;
+        allen_regions = glm.allen_regions;
+
+        if ~isfield(glm.models, model_name)
+            fprintf('  model "%s" not found in this file - skipping.\n', model_name);
             continue
         end
 
-        TC_sm    = movmean(TC, smooth_win_frames, 1);
-        sims_ch  = arrayfun(@(s) corr(TC_sm(:,s), ap_ch,  'rows','complete'), 1:nS);
-        sims_c23 = arrayfun(@(s) corr(TC_sm(:,s), ap_c23, 'rows','complete'), 1:nS);
-        mean_sim_ch(fi)  = mean(sims_ch);   std_sim_ch(fi)  = std(sims_ch);
-        mean_sim_c23(fi) = mean(sims_c23);  std_sim_c23(fi) = std(sims_c23);
+        model_result = glm.models.(model_name);
+
+        % Auto-locate the visual-stimulus predictor by label
+        pred_idx = find(contains(model_result.predictor_labels, 'stim'), 1);
+        if isempty(pred_idx)
+            fprintf('  no "stim" predictor in model "%s" - skipping.\n', model_name);
+            continue
+        end
+
+        eta2      = squeeze(model_result.eta2(pred_idx, :, :));
+        eta2_mask = (eta2 > eta2_thresh_val) & (bmask == 1);
+
+        % Use FULL-LENGTH predictor vectors for onset detection (NOT Xmodel)
+        if is_steady_model
+            stim_box = glm.predictors.stim_stationary;
+        else
+            stim_box = glm.predictors.stim_all;
+        end
+        stim_box     = stim_box(:);
+        onset_frames = find(diff([0; stim_box]) == 1);
+
+        if numel(onset_frames) < min_stationary_trials
+            fprintf('  only %d trial(s) - skipping.\n', numel(onset_frames));
+            continue
+        end
+
+        % Active region selection
+        active_region_ids = unique(allen_regions(eta2_mask));
+        active_region_ids(active_region_ids <= 1) = [];
+
+        valid = false(size(active_region_ids));
+        for ri = 1:numel(active_region_ids)
+            n_vox     = sum(allen_regions(:) == active_region_ids(ri) & eta2_mask(:));
+            valid(ri) = n_vox >= min_active_voxels;
+        end
+        active_region_ids = active_region_ids(valid);
+
+        if isempty(active_region_ids)
+            fprintf('  no regions with >= %d active voxels - skipping.\n', min_active_voxels);
+            continue
+        end
+
+        % --- load raw PDI (only data not stored in the GLM result) ---
+        [PDI, ~, ~] = fonduta.io.datapath.load_session(glm.dataPath, glm.anatPath);
+
+        TR = mean(diff(PDI.time));
+        TR_all(isub) = TR;
+
+        stim_dur_s = mean(PDI.stimInfo.endTime - PDI.stimInfo.startTime);
+        stim_dur_s_all(isub) = stim_dur_s;
+        fprintf('  stim_dur_s = %.2f s\n', stim_dur_s);
+
+        T             = size(PDI.PDI, 3);
+        stim_frames   = round(stim_dur_s / TR);
+        before_frames = round(before_stim_onset / TR);
+        after_frames  = round(after_stim_offset / TR);
+        W             = before_frames + stim_frames + after_frames;
+
+        nTrials = numel(onset_frames);
+        nROI    = numel(active_region_ids);
+
+        for r = 1:nROI
+            roi_supra = (allen_regions == active_region_ids(r)) & eta2_mask;
+            vox       = reshape(PDI.PDI, [], T);
+            y_roi     = mean(vox(roi_supra(:), :), 1)';
+
+            epoch_mat = [];
+
+            for tr = 1:nTrials
+                t_start = onset_frames(tr) - before_frames;
+                t_end   = t_start + W - 1;
+
+                if t_start < 1 || t_end > T; continue; end
+
+                epoch    = y_roi(t_start : t_end);
+                baseline = mean(epoch(1:before_frames));
+                epoch    = epoch - baseline;
+
+                epoch_mat = [epoch_mat, epoch(:)];   %#ok<AGROW>
+            end
+
+            if isempty(epoch_mat); continue; end
+
+            tc_sub = mean(epoch_mat, 2);
+
+            rId = active_region_ids(r);
+            if rId >= 1 && rId <= numel(atlas.infoRegions.acr)
+                acr  = atlas.infoRegions.acr{rId};
+                name = atlas.infoRegions.name{rId};
+            else
+                acr  = sprintf('ID_%d', rId);
+                name = acr;
+            end
+            field = matlab.lang.makeValidName(acr);
+
+            if ~isfield(regional_avg, field)
+                regional_avg.(field).tc   = tc_sub;
+                regional_avg.(field).acr  = acr;
+                regional_avg.(field).name = name;
+            else
+                regional_avg.(field).tc   = [regional_avg.(field).tc, tc_sub];
+            end
+        end
+
+        fprintf('  %d active regions\n', nROI);
+
+    catch ME
+        fprintf('  ERROR: %s\n', ME.message);
+        fprintf('    In: %s  line %d\n', ME.stack(1).name, ME.stack(1).line);
     end
-
-    keep = nsub_list >= n_subject_thresh & ~isnan(mean_sim_ch);
-    acr_list     = acr_list(keep);     name_list    = name_list(keep);
-    nsub_list    = nsub_list(keep);
-    mean_sim_ch  = mean_sim_ch(keep);  std_sim_ch   = std_sim_ch(keep);
-    mean_sim_c23 = mean_sim_c23(keep); std_sim_c23  = std_sim_c23(keep);
-
-    [~, idx]  = sort(mean_sim_ch, 'descend');
-    acr_s     = acr_list(idx);    name_s    = name_list(idx);
-    nsub_s    = nsub_list(idx);
-    mch_s     = mean_sim_ch(idx); sch_s     = std_sim_ch(idx);
-    mc23_s    = mean_sim_c23(idx); sc23_s   = std_sim_c23(idx);
-
-    % Filter to rows above sim_thresh
-    above  = mch_s >= sim_thresh;
-    acr_s  = acr_s(above);  name_s = name_s(above);  nsub_s = nsub_s(above);
-    mch_s  = mch_s(above);  sch_s  = sch_s(above);
-    mc23_s = mc23_s(above); sc23_s = sc23_s(above);
-    nR     = sum(above);
-
-    fprintf('\nSimple average — HRF similarity — %d regions (n >= %d subs):\n\n', nR, n_subject_thresh);
-    fprintf('%-12s  %-40s  %5s  %-18s  %-18s\n', ...
-        'Acronym', 'Full name', 'nSub', 'Chaoyi r±std', 'Chen2023 r±std');
-    fprintf('%s\n', repmat('-',1,100));
-    for fi = 1:nR
-        marker = '';
-        if mch_s(fi) >= sim_thresh; marker = '  ✓'; end
-        fprintf('%-12s  %-40s  %5d  %.3f ± %.3f      %.3f ± %.3f%s\n', ...
-            acr_s{fi}, name_s{fi}, nsub_s(fi), mch_s(fi), sch_s(fi), mc23_s(fi), sc23_s(fi), marker);
-    end
-    fprintf('\n%d / %d regions with Chaoyi mean r >= %.2f  (marked ✓)\n', ...
-        sum(mch_s >= sim_thresh), nR, sim_thresh);
 end
 
+close(wb);
 
-function plot_region(mat_file, target_acr, smooth_win_s)
+TR_mean       = mean(TR_all,         'omitnan');
+stim_dur_s    = mean(stim_dur_s_all, 'omitnan');
+before_frames = round(before_stim_onset / TR_mean);
+W             = before_frames + round(stim_dur_s/TR_mean) + round(after_stim_offset/TR_mean);
+t_window      = ((0:W-1) - before_frames) * TR_mean;
 
-    S = load(mat_file);
+save(out_fname, 'regional_avg', 'atlas', 'model_name', ...
+    'chaoyi_hrfParams', 'chen2023_hrfParams', ...
+    'eta2_thresh_val', 'TR_mean', 'stim_dur_s', ...
+    'before_stim_onset', 'after_stim_offset', ...
+    'W', 't_window', '-v7.3');
 
-    target_field = matlab.lang.makeValidName(target_acr);
+fprintf('\nResults saved to:\n  %s\n\n', out_fname);
 
-    if ~isfield(S.regional_avg, target_field)
-        fprintf('Region "%s" not found.\n', target_acr);
-        return
-    end
+end   % end analysis_simple_average
 
-    reg  = S.regional_avg.(target_field);
-    TC   = reg.tc;
-    nSub = size(TC, 2);
-
-    if smooth_win_s > 0
-        smooth_win_frames = max(1, round(smooth_win_s / S.TR_mean));
-        TC = movmean(TC, smooth_win_frames, 1);
-    end
-
-    mu = mean(TC, 2);
-    se = std(TC, 0, 2) / sqrt(nSub);
-
-    stim_frames_ap   = round(S.stim_dur_s / S.TR_mean);
-    before_frames_ap = round(S.before_stim_onset / S.TR_mean);
-    after_frames_ap  = round(S.after_stim_offset / S.TR_mean);
-    W_ap             = before_frames_ap + stim_frames_ap + after_frames_ap;
-    boxcar_ap        = [zeros(before_frames_ap,1); ones(stim_frames_ap,1); zeros(after_frames_ap,1)];
-
-    hrf_ch  = fonduta.signal.hrf(S.TR_mean, S.chaoyi_hrfParams);
-    ap_ch   = conv(boxcar_ap, hrf_ch);
-    ap_ch   = ap_ch(1:W_ap) / max(ap_ch(1:W_ap)) * max(abs(mu));
-
-    hrf_c23 = fonduta.signal.hrf(S.TR_mean, S.chen2023_hrfParams);
-    ap_c23  = conv(boxcar_ap, hrf_c23);
-    ap_c23  = ap_c23(1:W_ap) / max(ap_c23(1:W_ap)) * max(abs(mu));
-
-    stim_on_s = [0, S.stim_dur_s];
-    y_lo = min(mu-se) - 0.1;
-    y_hi = max(mu+se) + 0.1;
-
-    figure('Name', sprintf('Simple avg — %s', reg.acr), 'Position', [100 100 650 420]);
-    hold on;
-
-    fill([stim_on_s(1) stim_on_s(2) stim_on_s(2) stim_on_s(1)], ...
-         [y_lo y_lo y_hi y_hi], [0.9 0.95 1.0], 'EdgeColor', 'none', 'FaceAlpha', 0.6);
-
-    fill([S.t_window, fliplr(S.t_window)], [mu+se; flipud(mu-se)]', ...
-         [0.2 0.4 0.8], 'FaceAlpha', 0.25, 'EdgeColor', 'none');
-
-    plot(S.t_window, mu,    'b-',  'LineWidth', 2.5);
-    plot(S.t_window, ap_ch,  'k--', 'LineWidth', 2);
-    % plot(S.t_window, ap_c23, 'r--', 'LineWidth', 2);
-
-    hold off;
-    xline(0,            ':k', 'onset',  'LineWidth', 1, 'LabelVerticalAlignment', 'bottom');
-    xline(S.stim_dur_s, ':k', 'offset', 'LineWidth', 1, 'LabelVerticalAlignment', 'bottom');
-    yline(0, ':k', 'LineWidth', 0.8);
-
-    xlabel('Time relative to onset (s)');
-    ylabel('\DeltaF/F  (baseline-corrected)');
-    title(sprintf('%s — %s  (n=%d)', reg.acr, reg.name, nSub), ...
-        'Interpreter', 'none', 'FontSize', 11);
-    % legend({'stim period', '', 'mean \pm SE', 'Chaoyi HRF', 'Chen2023 HRF'}, 'Location', 'northeast', 'Interpreter', 'tex');
-    legend({'stim period', '', 'mean \pm SE', 'Chaoyi HRF'}, 'Location', 'northeast', 'Interpreter', 'tex');
-
-    box off;
-end
