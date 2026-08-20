@@ -333,7 +333,7 @@ for isub = 1:numel(subDataPath)
         runName = parts{end};
 
         outDir   = fullfile(resultPath, resultFolder);
-        saveName = fullfile(outDir, sprintf('glm_%s_FIR.mat', runName));
+        saveName = fullfile(outDir, sprintf('FIR_glm_%s.mat', runName));
 
         if ~exist(outDir, 'dir')
             mkdir(outDir);

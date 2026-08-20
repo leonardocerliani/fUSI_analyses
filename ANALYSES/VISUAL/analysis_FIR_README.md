@@ -402,6 +402,65 @@ title(strcat('FIR-estimated HRF — ',allen_ROI));
 
 ---
 
+## Why the FIR boxcar basis cannot recover the HRF shape — and what to use instead
+
+### Two completely different column structures
+
+The FIR basis built by `fn.generate_fir_basis` shifts the **sustained stimulus boxcar** in time. For a 15 s stimulus with `time_resampling = 1 s` and 5 nodes, the columns look like this:
+
+```
+Time →      onset                  offset
+            |                      |
+Column 1:   1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0
+Column 2:   0 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0  (shifted 1 s)
+Column 3:   0 0 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0  (shifted 2 s)
+...
+```
+
+Each column is **active for 15 s**. During the stimulus, all columns 1 through 15 are simultaneously equal to 1. This creates extreme collinearity — the design matrix rank is effectively 1 during the stimulus. The individual beta estimates are therefore unstable and meaningless as HRF shape estimates.
+
+The correct approach for HRF shape recovery uses **onset-delta + temporal shifts**. Place a 1 only at the first frame of each trial, then shift that sparse spike:
+
+```
+Time →      onset           onset+1s        onset+2s
+            |               |               |
+Column 1:   1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+Column 2:   0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  (5 frames = 1 s)
+Column 3:   0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  (10 frames = 2 s)
+...
+```
+
+Each column is 1 at exactly one frame per trial. The columns **do not overlap**. Beta k estimates the average signal exactly k seconds after onset — directly tracing the HRF shape.
+
+### Why the F-test is not affected by collinearity
+
+The omnibus F-test in `analysis_visual_FONDUTA_FIR.m` tests all N FIR betas **jointly** (via the contrast matrix `C`). This joint test is robust to collinearity: even if the individual betas are unstable, the F-statistic correctly measures whether the N columns as a group explain significant variance. The partial η² maps derived from the F-test are therefore valid and interpretable, even when the individual per-node betas are not.
+
+| | FIR boxcar basis | Onset-delta basis |
+|---|---|---|
+| Column k is | Sustained block shifted by k | Single spike at onset + k |
+| Columns overlap? | Yes — highly collinear | No — non-overlapping |
+| Beta k means | FIR filter coefficient | Average signal at lag k |
+| Good for | F-test / η² maps (joint test) | HRF shape recovery |
+| Bad for | HRF shape (individual betas) | F-test (too sparse for OLS) |
+
+### Simulation: seeing the difference
+
+`FIR_ridge_simulation.m` (in this folder) builds a synthetic fUSI time course with 5 known trials, applies the Chaoyi HRF, adds noise, and fits both design matrix types. Run its cells interactively to see:
+
+- **Cell 3:** The two design matrices side by side (imagesc) and their column correlation matrices — you will immediately see that the boxcar columns are highly correlated while the onset-delta columns are nearly orthogonal.
+- **Cell 4:** OLS recovery comparison. The onset-delta OLS betas closely match the ground-truth `conv(boxcar_one_trial, hrf)`. The boxcar OLS betas are noisy and inconsistent.
+- **Cell 5:** Ridge LOO-CV on the onset-delta design gives a clean, well-regularised HRF shape estimate even with only 5 trials.
+
+The key insight: the reference to compare against is not the bare HRF kernel, but `conv(boxcar_one_trial, hrf)` — the expected signal from a single sustained trial. This is because during a 15 s stimulus the signal is the integral of the HRF over the stimulus duration, not just the impulse response.
+
+### Recommended workflow
+
+- **Voxelwise maps** (η², F-stat): use `analysis_visual_FONDUTA_FIR.m` with `fn.generate_fir_basis` — the boxcar F-test is the right tool for detecting *which* regions respond.
+- **HRF shape recovery** (how does the response look over time?): use `analysis_ridge_loo_ROI.m`, which fits the onset-delta + ridge LOO-CV design to ROI-averaged signals.
+
+---
+
 ## HRF interpretation and considerations
 
 ### The fUSI HRF is broader and slower than the BOLD HRF

@@ -14,11 +14,11 @@ minDuration  = 0.2;    % min running bout duration (s) to classify a trial as ru
 % SPM-style double-gamma HRF parameters:
 %   [delay_response, delay_undershoot, disp_response, disp_undershoot, ratio, onset, kernel_length_s]
 
-% % Chaoyi
-% hrfParams    = [2.4  8  0.8  0.9  6  0  16];
+% Chaoyi
+hrfParams    = [2.4  8  0.8  0.9  6  0  16];
 
-% Chen2023
-hrfParams = [4.95 8.69 1.1 1.1 1.8 0 32];
+% % Chen2023
+% hrfParams = [4.95 8.69 1.1 1.1 1.8 0 32];
 
 % Get the location of the data using Datapath
 [subDataPath, subAnatPath, ~] = fonduta.io.datapath.Datapath('VisualTest');
