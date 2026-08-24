@@ -1,4 +1,4 @@
-function analysis_simple_average(glm_results_path, model_name, opts)
+function analysis_simple_average(glm_results_path, opts)
 % analysis_simple_average  Group event-related averaging using saved GLM results.
 
 %
@@ -9,31 +9,28 @@ function analysis_simple_average(glm_results_path, model_name, opts)
 % time-series (needed for epoch extraction).
 %
 % USAGE:
-%   analysis_simple_average(glm_results_path, model_name)
-%   analysis_simple_average(glm_results_path, model_name, opts)
-
+%   analysis_simple_average(glm_results_path, opts)
 %
 %   glm_results_path  folder with glm_*.mat files
-%   model_name        e.g. 'M8_SteadyVisual', 'M1_StimOnly', 'M7b_RunConv'
-%   opts              optional struct with any of:
-%       .eta2_thresh_val       (default 0.03)
-%       .before_stim_onset     (default 5  s)
-%       .after_stim_offset     (default 20 s)
+%   opts              struct with:
+%       .model                e.g. 'M8_SteadyVisual', 'M1_StimOnly'
+%       .eta2_thresh_val      (default 0.03)
+%       .before_stim_onset    (default 5  s)
+%       .after_stim_offset    (default 20 s)
 %       .min_stationary_trials (default 3)
-%       .min_active_voxels     (default 5)
-%       .resultPath            (default pwd)
+%       .min_active_voxels    (default 5)
+%       .resultPath           output directory (default pwd)
 %
 % OUTPUT:
-%   <resultPath>/results_simple_average/simple_avg_<model_name>_<eta_str>.mat
-%   e.g. simple_avg_M8_SteadyVisual_eta003.mat  for eta2_thresh_val = 0.03
+%   <resultPath>/simple_avg_<model_name>_<eta_str>.mat
+%   e.g. simple_avg_M8_SteadyVisual_eta003.mat
 %
-% BATCH EXAMPLE:
-%   glm_path = '/data06/fUSIMethodsPaper/Data_analysis/LC/VisualTest';
-%   models   = {'M1_StimOnly','M7b_RunConv','M8_SteadyVisual'};
-%   for k = 1:numel(models)
-%       analysis_simple_average(glm_path, models{k});
-
-%   end
+% EXAMPLE:
+%   opts.model = 'M8_SteadyVisual';
+%   opts.eta2_thresh_val = 0.03;
+%   opts.resultPath = '/path/to/results';
+%
+%   analysis_simple_average(glm_path, opts);
 %
 % To view available model names:
 %   tmp_files = dir(fullfile(glm_path, 'glm_*.mat'));
@@ -67,11 +64,19 @@ function analysis_simple_average(glm_results_path, model_name, opts)
 % ---- no arguments: print usage and return ----
 if nargin == 0
     help analysis_simple_average
-
     return
 end
 
-if nargin < 3; opts = struct(); end
+if nargin < 2
+    error('Usage: analysis_simple_average(glm_results_path, opts)');
+end
+
+if ~isfield(opts, 'model')
+    error('opts.model must be specified.');
+end
+
+model_name = opts.model;
+
 
 % ---- paths and packages ----
 FONDUTA_PATH = '/data00/leonardo/github/fUSI_analyses/FONDUTA';
@@ -100,19 +105,20 @@ resultPath            = opts.resultPath;
 
 % ---- build output filename ----
 eta_str   = sprintf('eta%03d', round(eta2_thresh_val * 100));
-out_dir   = fullfile(resultPath, 'results_simple_average');
+out_dir   = resultPath;
 out_fname = fullfile(out_dir, sprintf('simple_avg_%s_%s.mat', model_name, eta_str));
 
 % ---- check if results already exist ----
 if isfile(out_fname)
     fprintf('\n[analysis_simple_average] Results already exist:\n');
-
     fprintf('  %s\n\n', out_fname);
     fprintf('Delete the file to re-run, or change eta2_thresh_val.\n\n');
     return
 end
 
-if ~exist(out_dir, 'dir'); mkdir(out_dir); end
+if ~exist(out_dir, 'dir')
+    mkdir(out_dir);
+end
 
 % ---- run the analysis ----
 glm_files = dir(fullfile(glm_results_path, 'glm_*.mat'));
