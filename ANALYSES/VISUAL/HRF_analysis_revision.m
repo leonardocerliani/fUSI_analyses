@@ -1,6 +1,6 @@
 %% Analyses for revision
 
-% The reviewer poses suggests that our procedure of carrying out GLM using
+% The reviewer suggests that our procedure of carrying out GLM using
 % the canonical HRF (from Nunez-Elizalde) might be too simplistic and not
 % capture the variability of the HRF across regions and stimuli, which in
 % turn would yield a suboptimal advantage when using the motion as an 
@@ -43,6 +43,7 @@ atlas = fonduta.atlas.load_atlas();
 % using the canonical HRF.
 glm_results_path = '/data06/fUSIMethodsPaper/Data_analysis/LC/VisualTest';
 HRF_glm_files = dir(fullfile(glm_results_path, 'glm*.mat'));
+FIR_glm_files = dir(fullfile(glm_results_path, 'FIR_glm*.mat'));
 
 % Define models
 models = struct( ...
@@ -63,58 +64,237 @@ eta2 = calculate_mean_eta2_maps(HRF_glm_files, ...
     models, ...
     eta2_mean_results_path);
 
+% fonduta.viz.view_atlas
 
 %% Extract average peristimulus HRF for M8 (stationary) and M1 (all Stims)
 %  NB: DO NOT evaluate all this cell at once. Follow the instructions.
 
+% Here we tackle in the simplest way the question of whether the canonical
+% HRF is appropriate to model the haemodynamic response to the stimuli: we
+% simply plot the average peristimulus time course and we compare it (using
+% correlation or cosine similarity) with the boxcar convolved with the
+% canonical HRF.
+% One interesting thing to do is to visualize the shape of the average hrf
+% in regions with large eta2 wrt regions which are not "activated" by the
+% stimulus.
+
 hrf_analysis_path = fullfile(pwd, 'HRF_analysis_revision', 'results_simple_average');
-
-% 0. Extract and save the average peristimulus time courses.
-%    Skip(ped) if alredy calculated
 opts.resultPath = hrf_analysis_path;
-opts.eta2_thresh_val = 0.03;
 
-%    Choose one
+% Extract and save the average peristimulus time courses.
+% - For regions with at least N min_active_voxes at the given eta2 threshold,
+%   only those voxels are selected to calculate the average time course.
+% - For all other regions, the voxels with the top 5% eta2 values are selected
+%   for the average time course.
+
+% Choose one of M1 or M8
+% Note that we are _not_ modelling here. M8 is to isolate the peristimulus
+% time course in stationary trials. M1 considers all trials.
+% (Maybe it could be interesting to have all the time courses for running trials)
+
 opts.model = 'M8_SteadyVisual';
 % opts.model = 'M1_StimOnly';
+opts.eta2_thresh_val = 0.03;
+opts.min_active_voxels = 5;
 
 analysis_simple_average(glm_results_path,opts);
 
+% tic
+% analysis_simple_average_parallel(glm_results_path,opts);
+% toc
 
+% -------------------------------------------------------------------------
 
 % Viewing the correlation with the HRF and plotting the avg time courses:
 
-% 1. First print the table of the correlation for all (suprathreshold) regions
-% NB: You might need to lower the opts.sim_thresh.
-opts.sim_thresh       = 0.5;   % only show regions where corr with canonical hrf is >= than this
-opts.n_subject_thresh = 10;     % only show regions present in >= this many subjects
-opts.smooth_win_s     = 5;     % moving-average smoothing window in seconds (0 = off)
+% 0. You can use this modification of the fonduta.viz.view_atlas.
+view_simple_average_results()
 
-analysis_simple_average_view_results.view_table(opts)
+% If you want to generate the single components, use the code below
+
+% % 1. First print the table of the correlation for all (suprathreshold) regions
+% % NB: You might need to lower the opts.sim_thresh.
+% opts.sim_thresh       = 0.85;   % only show regions where corr with canonical hrf is >= than this
+% opts.n_subject_thresh = 10;     % only show regions present in >= this many subjects
+% opts.smooth_win_s     = 5;     % moving-average smoothing window in seconds (0 = off)
+% 
+% analysis_simple_average_view_results.view_table(opts)
+% % -------------------------------------------------------------------------
+% 
+% 
+% 
+% % 2. Then choose one region from the table to see the plot.
+% %    Optionally, (re)set the running window average
+% opts.target_acr   = 'LGv';    % Allen acronym — pick from Part 2 table
+% opts.smooth_win_s = 5;         % seconds (0 = off)
+% 
+% analysis_simple_average_view_results.plot_similarity(opts)
+% % -------------------------------------------------------------------------
+% 
+% 
+% % 3. Generate a map to inspect with fonduta.viz.view_atlas
+% opts.sim_thresh       = 0;
+% opts.smooth_win_s     = 5;
+% opts.statistic        = 'mean';
+% 
+% analysis_simple_average_generate_allen_map(opts);
+% 
+% % view the map
+% fonduta.viz.view_atlas
 
 
-% 2. Then choose one region from the table to see the plot.
-%    Optionally, (re)set the running window average
-opts.target_acr   = 'LGd-co';    % Allen acronym — pick from Part 2 table
-opts.smooth_win_s = 5;         % seconds (0 = off)
-
-analysis_simple_average_view_results.plot_similarity(opts)
 
 
-% 3. Generate a map to inspect with fonduta.viz.view_atlas
-opts.sim_thresh       = 0;
-opts.smooth_win_s     = 5;
-opts.statistic        = 'mean';
+%% Correlation between HRF and FIR eta2 maps
+% In this part we tackle the crucial question of whether the signal is
+% modelled more appropriately using FIR (time-shifted delta functions) than
+% with the canonical HRF. 
+% The calculation of the maps has already been carried out in the
+% analysis_visual_FONDUTA_[FIR/HRF], and here we compare the results using
+% a simple method: the correlation of the eta2 maps from either GLMs.
 
-analysis_simple_average_generate_allen_map(opts);
+% IMPORTANT: HRF vs FIR eta2 map correspondence
+%
+% The HRF and FIR analyses use different model structures and predictor
+% representations, so the relevant eta2 maps cannot be matched simply by
+% predictor index.
+%
+% We are interested only in models M1, M5, and M8. The corresponding
+% models are:
+%
+%   HRF                         FIR
+%   M1_StimOnly                 F1_StimOnly
+%   M5_Behavior                 F2_Behavior
+%   M8_SteadyVisual             F3_SteadyVisual
+%
+% For M1 and M8 there is only one relevant predictor (apart from the
+% intercept), so the correspondence is straightforward:
+%
+%   HRF eta2(1,:,:)             FIR fcontrast eta2_p
+%
+% For M5_Behavior, the HRF model contains four non-intercept predictors,
+% while the FIR model stores the relevant effects as named F-contrasts.
+% The correspondence is:
+%
+%   HRF eta2(1,:,:)             FIR fcontrasts.Visual_FIR.eta2_p
+%   HRF eta2(3,:,:)             FIR fcontrasts.Wheel_FIR.eta2_p
+%   HRF eta2(4,:,:)             FIR fcontrasts.Interaction_FIR.eta2_p
 
-% 4. View the map
-fonduta.viz.view_atlas
+
+% M5_Behavior eta2 map correspondence:
+%
+%   HRF models.M5_Behavior        | FIR models.F2_Behavior
+%   ------------------------------|----------------------------------------
+%   eta2(1,:,:)                   | fcontrasts.Visual_FIR.eta2_p
+%   eta2(3,:,:)                   | fcontrasts.Wheel_FIR.eta2_p
+%   eta2(4,:,:)                   | fcontrasts.Interaction_FIR.eta2_p
 
 
+% Note that the HRF eta2(2,:,:) map is intentionally NOT used. The
+% relevant HRF predictors for M5 are therefore indices 1, 3, and 4.
+%
+% The brain mask is subject-specific, but is identical between the HRF
+% and FIR results for a given subject. Therefore, for each subject we use
+% that subject's HRF bmask to select voxels from both eta2 maps before
+% calculating their spatial correlation.
+%
+% The HRF and FIR eta2 maps have the same spatial dimensions (158 x 90).
 
 
+model_HRF = models(3).name;
+disp(model_HRF)
+
+switch model_HRF
+
+    case 'M1_StimOnly'
+
+        model_FIR = 'F1_StimOnly';
+
+        HRF_eta2_idx = 1;
+        FIR_contrasts = {'Visual_FIR'};
+
+    case 'M5_Behavior'
+
+        model_FIR = 'F2_Behavior';
+
+        HRF_eta2_idx = [1 3 4];
+        FIR_contrasts = { ...
+            'Visual_FIR', ...
+            'Wheel_FIR', ...
+            'Interaction_FIR'};
+
+    case 'M8_SteadyVisual'
+
+        model_FIR = 'F3_SteadyVisual';
+
+        HRF_eta2_idx = 1;
+        FIR_contrasts = {'Visual_Steady_FIR'};
+
+    otherwise
+
+        error('No HRF/FIR mapping defined for model "%s".', ...
+            model_HRF);
+
+end
+
+nSubs = numel(HRF_glm_files);
+nPredictors = numel(HRF_eta2_idx);
+
+% Initialize:
+% rows    = subjects
+% columns = corresponding HRF/FIR eta2 maps
+eta2_corrs = nan(nSubs, nPredictors);
+
+for isub = 1:nSubs
+
+    disp(isub)
+
+    HRF_onesub = load(fullfile( ...
+        HRF_glm_files(isub).folder, ...
+        HRF_glm_files(isub).name)).data;
+
+    FIR_onesub = load(fullfile( ...
+        FIR_glm_files(isub).folder, ...
+        FIR_glm_files(isub).name)).data;
+
+    % Subject-specific mask.
+    % This mask is the same for HRF and FIR for this subject.
+    bmask_idx = find(HRF_onesub.bmask);
+
+    for ipred = 1:nPredictors
+
+        % HRF eta2 map
+        HRF_eta2_map = squeeze( ...
+            HRF_onesub.models.(model_HRF).eta2( ...
+            HRF_eta2_idx(ipred), :, :));
+
+        % FIR eta2 map
+        contrast_name = FIR_contrasts{ipred};
+
+        FIR_eta2_map = FIR_onesub.models.(model_FIR) ...
+            .fcontrasts.(contrast_name).eta2_p;
+
+        % Restrict both maps to the subject-specific brain mask
+        HRF_eta2_vec = HRF_eta2_map(bmask_idx);
+        FIR_eta2_vec = FIR_eta2_map(bmask_idx);
+
+        % Correlation between the two eta2 maps
+        eta2_corrs(isub, ipred) = corr( ...
+            HRF_eta2_vec, ...
+            FIR_eta2_vec, ...
+            'rows', 'complete');
+
+    end
+end
+
+mean(eta2_corrs,1)
 
 
+%%
 
+sub=1
+
+fonduta.viz.view_glm( fullfile( HRF_glm_files(sub).folder, HRF_glm_files(sub).name) )
+
+fonduta.viz.view_glm( fullfile( FIR_glm_files(sub).folder, FIR_glm_files(sub).name) )
 

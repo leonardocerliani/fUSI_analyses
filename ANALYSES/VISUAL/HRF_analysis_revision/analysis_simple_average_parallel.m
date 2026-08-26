@@ -1,65 +1,8 @@
 function analysis_simple_average(glm_results_path, opts)
-% analysis_simple_average  Group event-related averaging using saved GLM results.
+% analysis_simple_average  Group event-related averaging using saved GLM results (Parallelized).
 
-%
-% Reuses per-session GLM result files (glm_*.mat, saved by
-% analysis_visual_FONDUTA.m) to avoid re-fitting a GLM per subject.
-% Masks, region labels, eta2 maps, and predictor boxcars all come directly
-% from those files.  The only data still loaded per subject is the raw PDI
-% time-series (needed for epoch extraction).
-%
-% USAGE:
-%   analysis_simple_average(glm_results_path, opts)
-%
-%   glm_results_path  folder with glm_*.mat files
-%   opts              struct with:
-%       .model                e.g. 'M8_SteadyVisual', 'M1_StimOnly'
-%       .eta2_thresh_val      (default 0.03)
-%       .before_stim_onset    (default 5  s)
-%       .after_stim_offset    (default 20 s)
-%       .min_stationary_trials (default 3)
-%       .min_active_voxels    (default 5)
-%       .resultPath           output directory (default pwd)
-%
-% OUTPUT:
-%   <resultPath>/simple_avg_<model_name>_<eta_str>.mat
-%   e.g. simple_avg_M8_SteadyVisual_eta003.mat
-%
-% EXAMPLE:
-%   opts.model = 'M8_SteadyVisual';
-%   opts.eta2_thresh_val = 0.03;
-%   opts.resultPath = '/path/to/results';
-%
-%   analysis_simple_average(glm_path, opts);
-%
-% To view available model names:
-%   tmp_files = dir(fullfile(glm_path, 'glm_*.mat'));
-%   tmp = load(fullfile(tmp_files(1).folder, tmp_files(1).name));
-%   fieldnames(tmp.data.models)
-%
-% For interactive plotting of the results, use:
-%   analysis_simple_average_view_results.m
-
-%
-% =========================================================================
-% *** IMPORTANT — M8 time-axis gotcha ***
-% =========================================================================
-% analysis_visual_FONDUTA.m fits M8_SteadyVisual on a TEMPORALLY SUBSAMPLED
-% dataset (running frames + ~16 s HRF tail removed before fitting):
-%
-%     stationaryFrames = ~runningFrameMask(:);
-%     PDI_steady       = PDI.PDI(:, :, stationaryFrames);
-%
-% => glm.models.M8_SteadyVisual.Xmodel  length ~4571  (SUBSAMPLED axis)
-%    glm.predictors.stim_stationary      length  6028  (FULL, matches PDI)
-%
-% Using Xmodel to find trial onsets would silently misalign every epoch.
-% We ALWAYS use glm.predictors.stim_all / stim_stationary for onset detection.
-%
-% Model-dependent boxcar choice:
-%   model_name contains 'Steady' -> use stim_stationary (stationary trials only)
-%   any other model              -> use stim_all (all trials)
-% =========================================================================
+% ---- Hardcoded Parallel Settings ----
+max_workers = 10; % <--- SET YOUR MAXIMUM NUMBER OF WORKERS HERE
 
 % ---- no arguments: print usage and return ----
 if nargin == 0
@@ -77,11 +20,24 @@ end
 
 model_name = opts.model;
 
-
 % ---- paths and packages ----
 FONDUTA_PATH = '/data00/leonardo/github/fUSI_analyses/FONDUTA';
 addpath(genpath(FONDUTA_PATH));
 addpath(genpath(fileparts(mfilename('fullpath'))));
+
+% ---- Initialize Parallel Pool with max_workers limit ----
+current_pool = gcp('nocreate');
+
+if isempty(current_pool)
+    parpool('local', max_workers);
+elseif current_pool.NumWorkers > max_workers
+    % Re-open pool if existing pool exceeds worker cap
+    delete(current_pool);
+    parpool('local', max_workers);
+end
+
+% Ensure all active workers have access to paths (MUST run after pool is active)
+pctRunOnAll(sprintf("addpath(genpath('%s'))", FONDUTA_PATH));
 
 atlas = fonduta.atlas.load_atlas();
 
@@ -129,36 +85,37 @@ if nSubs == 0
 end
 
 fprintf('\n%s\n', repmat('=',1,60));
-fprintf(' analysis_simple_average\n');
-
+fprintf(' analysis_simple_average (Parallel Run)\n');
 fprintf(' model  : %s\n', model_name);
 fprintf(' eta2 >= : %.3f\n', eta2_thresh_val);
 fprintf(' nSubs  : %d\n', nSubs);
+fprintf(' workers: %d\n', gcp().NumWorkers);
 fprintf('%s\n\n', repmat('=',1,60));
 
-regional_avg   = struct();
 TR_all         = nan(1, nSubs);
 stim_dur_s_all = nan(1, nSubs);
-
 is_steady_model = contains(model_name, 'Steady', 'IgnoreCase', true);
 
-wb = waitbar(0, sprintf('Simple-avg: %s', model_name), 'Name', 'Group Simple Avg');
+% Cell array to safely hold per-subject result structures inside parfor
+sub_results = cell(1, nSubs);
 
-for isub = 1:nSubs
-
-    fprintf('\n%s\n--- Sub %d / %d ---\n%s\n', ...
-        repmat('-',1,40), isub, nSubs, repmat('-',1,40));
-    waitbar(isub/nSubs, wb, sprintf('Subject %d / %d', isub, nSubs));
+parfor isub = 1:nSubs
+    fprintf('Processing Subject %d / %d...\n', isub, nSubs);
+    
+    % Temporary structure to hold outputs per worker
+    sub_struct = struct();
 
     try
-        glm = load(fullfile(glm_files(isub).folder, glm_files(isub).name)).data;
+        file_path = fullfile(glm_files(isub).folder, glm_files(isub).name);
+        tmp_glm   = load(file_path);
+        glm       = tmp_glm.data;
 
         % --- from saved GLM result --- no recomputation needed ---
         bmask         = glm.bmask;
         allen_regions = glm.allen_regions;
 
         if ~isfield(glm.models, model_name)
-            fprintf('  model "%s" not found in this file - skipping.\n', model_name);
+            fprintf('  Sub %d: model "%s" not found - skipping.\n', isub, model_name);
             continue
         end
 
@@ -167,7 +124,7 @@ for isub = 1:nSubs
         % Auto-locate the visual-stimulus predictor by label
         pred_idx = find(contains(model_result.predictor_labels, 'stim'), 1);
         if isempty(pred_idx)
-            fprintf('  no "stim" predictor in model "%s" - skipping.\n', model_name);
+            fprintf('  Sub %d: no "stim" predictor in model "%s" - skipping.\n', isub, model_name);
             continue
         end
 
@@ -184,24 +141,19 @@ for isub = 1:nSubs
         onset_frames = find(diff([0; stim_box]) == 1);
 
         if numel(onset_frames) < min_stationary_trials
-            fprintf('  only %d trial(s) - skipping.\n', numel(onset_frames));
+            fprintf('  Sub %d: only %d trial(s) - skipping.\n', isub, numel(onset_frames));
             continue
         end
-
-        % All anatomical regions are considered.
-        % For each region, the voxels used for the time course are selected below:
-        %   - if >= min_active_voxels are suprathreshold, use all suprathreshold voxels
-        %   - otherwise, use the top 5% of voxels ranked by eta2
 
         active_region_ids = unique(allen_regions);
         active_region_ids(active_region_ids <= 1) = [];
 
         if isempty(active_region_ids)
-            fprintf('  no anatomical regions found - skipping.\n');
+            fprintf('  Sub %d: no anatomical regions found - skipping.\n', isub);
             continue
         end
 
-        % --- load raw PDI (only data not stored in the GLM result) ---
+        % --- load raw PDI ---
         [PDI, ~, ~] = fonduta.io.datapath.load_session(glm.dataPath, glm.anatPath);
 
         TR = mean(diff(PDI.time));
@@ -209,7 +161,6 @@ for isub = 1:nSubs
 
         stim_dur_s = mean(PDI.stimInfo.endTime - PDI.stimInfo.startTime);
         stim_dur_s_all(isub) = stim_dur_s;
-        fprintf('  stim_dur_s = %.2f s\n', stim_dur_s);
 
         T             = size(PDI.PDI, 3);
         stim_frames   = round(stim_dur_s / TR);
@@ -221,26 +172,17 @@ for isub = 1:nSubs
         nROI    = numel(active_region_ids);
 
         for r = 1:nROI
-
             rId = active_region_ids(r);
 
-            % All voxels belonging to this anatomical region
-            roi_mask = (allen_regions == rId) & (bmask == 1);
-
-            % Suprathreshold voxels in this region
+            roi_mask  = (allen_regions == rId) & (bmask == 1);
             roi_supra = roi_mask & eta2_mask;
 
             n_supra = sum(roi_supra(:));
             n_roi   = sum(roi_mask(:));
 
             if n_supra >= min_active_voxels
-                % Enough suprathreshold voxels:
-                % use all suprathreshold voxels.
                 roi_vox_mask = roi_supra;
-
             else
-                % Too few suprathreshold voxels:
-                % use the top 5% of voxels in the region ranked by eta2.
                 roi_indices = find(roi_mask);
                 roi_eta2    = eta2(roi_indices);
 
@@ -256,7 +198,8 @@ for isub = 1:nSubs
             vox   = reshape(PDI.PDI, [], T);
             y_roi = mean(vox(roi_vox_mask(:), :), 1)';
 
-            epoch_mat = [];
+            epoch_mat = nan(W, nTrials);
+            valid_tr_cnt = 0;
 
             for tr = 1:nTrials
                 t_start = onset_frames(tr) - before_frames;
@@ -266,16 +209,15 @@ for isub = 1:nSubs
 
                 epoch    = y_roi(t_start : t_end);
                 baseline = mean(epoch(1:before_frames));
-                epoch    = epoch - baseline;
-
-                epoch_mat = [epoch_mat, epoch(:)];   %#ok<AGROW>
+                
+                valid_tr_cnt = valid_tr_cnt + 1;
+                epoch_mat(:, valid_tr_cnt) = epoch - baseline;
             end
 
-            if isempty(epoch_mat); continue; end
+            if valid_tr_cnt == 0; continue; end
 
-            tc_sub = mean(epoch_mat, 2);
+            tc_sub = mean(epoch_mat(:, 1:valid_tr_cnt), 2);
 
-            rId = active_region_ids(r);
             if rId >= 1 && rId <= numel(atlas.infoRegions.acr)
                 acr  = atlas.infoRegions.acr{rId};
                 name = atlas.infoRegions.name{rId};
@@ -285,25 +227,39 @@ for isub = 1:nSubs
             end
             field = matlab.lang.makeValidName(acr);
 
-            if ~isfield(regional_avg, field)
-                regional_avg.(field).tc   = tc_sub;
-                regional_avg.(field).acr  = acr;
-                regional_avg.(field).name = name;
-            else
-                regional_avg.(field).tc   = [regional_avg.(field).tc, tc_sub];
-            end
+            sub_struct.(field).tc   = tc_sub;
+            sub_struct.(field).acr  = acr;
+            sub_struct.(field).name = name;
         end
 
-        fprintf('  %d active regions\n', nROI);
-
     catch ME
-        fprintf('  ERROR: %s\n', ME.message);
-        fprintf('    In: %s  line %d\n', ME.stack(1).name, ME.stack(1).line);
+        fprintf('  ERROR Sub %d: %s\n', isub, ME.message);
+    end
+
+    sub_results{isub} = sub_struct;
+end
+
+% ---- Consolidate parallel results into regional_avg ----
+regional_avg = struct();
+
+for isub = 1:nSubs
+    sub_data = sub_results{isub};
+    if isempty(sub_data); continue; end
+
+    fields = fieldnames(sub_data);
+    for f = 1:numel(fields)
+        fn = fields{f};
+        if ~isfield(regional_avg, fn)
+            regional_avg.(fn).tc   = sub_data.(fn).tc;
+            regional_avg.(fn).acr  = sub_data.(fn).acr;
+            regional_avg.(fn).name = sub_data.(fn).name;
+        else
+            regional_avg.(fn).tc   = [regional_avg.(fn).tc, sub_data.(fn).tc];
+        end
     end
 end
 
-close(wb);
-
+% ---- Save final outputs ----
 TR_mean       = mean(TR_all,         'omitnan');
 stim_dur_s    = mean(stim_dur_s_all, 'omitnan');
 before_frames = round(before_stim_onset / TR_mean);
@@ -318,5 +274,7 @@ save(out_fname, 'regional_avg', 'atlas', 'model_name', ...
 
 fprintf('\nResults saved to:\n  %s\n\n', out_fname);
 
-end   % end analysis_simple_average
+% ---- Shutdown parallel pool ----
+delete(gcp('nocreate'));
 
+end
