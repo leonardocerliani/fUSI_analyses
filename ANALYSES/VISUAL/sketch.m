@@ -143,3 +143,28 @@ save('pippo_mask.mat','eta2_mean_mask');
 fonduta.viz.view_atlas
 
  
+%% simple average results
+
+% 3. Generate a map to inspect with fonduta.viz.view_atlas
+
+opts.model           = 'M1_StimOnly'; % 'M5_Behavior' 'M8_SteadyVisual' 'M1_StimOnly'
+opts.sim_thresh       = 0;
+opts.smooth_win_s     = 5;
+opts.statistic        = 'mean';
+
+analysis_simple_average_generate_allen_map(opts);
+
+% view the map
+fonduta.viz.view_atlas
+
+
+res_dir = fullfile(pwd, 'HRF_analysis_revision','results_simple_average')
+
+M1 = load(fullfile(res_dir, "simple_avg_M1_StimOnly_eta003_map.mat"));
+M5 = load(fullfile(res_dir, "simple_avg_M5_Behavior_eta003_map.mat"));
+
+Mdiff = M5.correlation_map - M1.correlation_map;
+save('pippo.mat','Mdiff');
+
+
+

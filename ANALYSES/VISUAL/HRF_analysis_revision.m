@@ -175,7 +175,7 @@ plot_subject_level_similarity(res_M1, res_M5, res_M8, HRF_glm_files);
 glm_results_path = '/data06/fUSIMethodsPaper/Data_analysis/LC/VisualTest';
 
 run_num = '115826';
-% run_num = '112118';
+run_num = '112118';
 % run_num = '152916';
 % run_num = '104841';
 % run_num = '154343';
@@ -183,7 +183,7 @@ run_num = '115826';
 % run_num = '122011';
 % run_num = '101347';
 % run_num = '142450';
-% run_num = '142742';
+run_num = '142742';
 % 
 % run_num = run_numbers{32};
 
@@ -223,7 +223,7 @@ opts.min_active_voxels = 5;
 % Choose one model among M1, M5, M8
 % Note that we are _not_ modelling here. M8 is to isolate the peristimulus
 % time course in stationary trials. M1 considers all trials.
-% (Maybe it could be interesting to have all the time courses for running trials)
+%
 % For models with nuisance parameters (like M5), choose also the labels of
 % the nuisance predictors.
 
@@ -279,6 +279,21 @@ view_simple_average_results()
 % fonduta.viz.view_atlas
 
 
+% Additionally, we can see in which regions the effect of denoising using
+% the convolved motion + interaction(motion*stimuli) was most evident
+
+res_dir = fullfile(pwd, 'HRF_analysis_revision','results_simple_average')
+
+M1 = load(fullfile(res_dir, "simple_avg_M1_StimOnly_eta003_map.mat"));
+M5 = load(fullfile(res_dir, "simple_avg_M5_Behavior_eta003_map.mat"));
+
+M5_minus_M1 = M5.correlation_map - M1.correlation_map;
+save(fullfile(res_dir,'M5_minus_M1.mat'),'M5_minus_M1');
+
+M1_minus_M5 = M1.correlation_map - M5.correlation_map;
+save(fullfile(res_dir,'M1_minus_M5.mat'),'M1_minus_M5');
+
+% fonduta.viz.view_atlas
 
 
 

@@ -1,5 +1,7 @@
 function view_simple_average_results(atlas)
-% VIEW_ATLAS Coronal viewer with HRF correlation maps and simple average support.
+% VIEW_ATLAS Enhanced coronal viewer with dynamic HRF correlation maps,
+% customizable time-course smoothing, and non-overlapping layout.
+
     %% Load Atlas if not supplied
     if nargin < 1 || isempty(atlas)
         try
@@ -12,6 +14,7 @@ function view_simple_average_results(atlas)
             end
         end
     end
+
     baseVol   = atlas.Histology;
     volSize   = size(baseVol);
     slice     = round(volSize(2) / 2);
@@ -23,9 +26,10 @@ function view_simple_average_results(atlas)
     regionHandles = [];
     crossHandles  = [];
     cbarHandle    = [];
+
     % Active Simple-Average Data Storage
     simpleAvgData = [];
-    
+
     %% Figure & Layout Configuration
     fig = figure('Name', 'Coronal HRF & Overlay Viewer', ...
         'Position', [80 80 1350 750], 'Color', 'w', ...
@@ -35,15 +39,15 @@ function view_simple_average_results(atlas)
     % Top Banner: Loaded File Indicator
     txtFileStatus = uicontrol(fig, 'Style', 'text', ...
         'String', 'Loaded file: None', ...
-        'Units', 'normalized', 'Position', [0.08, 0.96, 0.85, 0.03], ...
+        'Units', 'normalized', 'Position', [0.08, 0.94, 0.85, 0.03], ...
         'BackgroundColor', 'w', 'FontSize', 11, 'FontWeight', 'bold', ...
         'HorizontalAlignment', 'left');
 
-    % Left Main Axes: Coronal View
-    ax = axes('Parent', fig, 'Position', [0.10, 0.20, 0.44, 0.70]);
+    % Left Main Axes: Coronal View (shifted right to leave room for left colorbar)
+    ax = axes('Parent', fig, 'Position', [0.08, 0.22, 0.45, 0.68]);
     
     % Right Side Axes: Time-Course Plot
-    axTC = axes('Parent', fig, 'Position', [0.64, 0.20, 0.32, 0.70]);
+    axTC = axes('Parent', fig, 'Position', [0.61, 0.22, 0.35, 0.68]);
     title(axTC, 'Regional Time Course', 'FontSize', 12);
     xlabel(axTC, 'Time relative to onset (s)');
     ylabel(axTC, '$\Delta P / P_0$ (\% CBV change)', 'Interpreter', 'latex');
@@ -59,9 +63,11 @@ function view_simple_average_results(atlas)
     uicontrol(fig, 'Style', 'pushbutton', 'String', 'Load simple average results mat', ...
         'Units', 'normalized', 'Position', [0.08, 0.02, 0.22, 0.04], ...
         'FontSize', 10, 'Callback', @btnLoadSimpleAvg);
+
     uicontrol(fig, 'Style', 'pushbutton', 'String', 'Clear Overlays', ...
         'Units', 'normalized', 'Position', [0.31, 0.02, 0.10, 0.04], ...
         'FontSize', 10, 'Callback', @btnClearOverlays);
+
     uicontrol(fig, 'Style', 'togglebutton', 'String', 'Lines ON', ...
         'Value', 1, 'Units', 'normalized', 'Position', [0.42, 0.02, 0.08, 0.04], ...
         'FontSize', 10, 'Callback', @btnToggleLines);
@@ -81,6 +87,7 @@ function view_simple_average_results(atlas)
     hMinBox = uicontrol(fig, 'Style', 'edit', 'String', '0', ...
         'Units', 'normalized', 'Position', [0.715, 0.02, 0.05, 0.04], ...
         'FontSize', 10, 'Callback', @btnUpdateCLim);
+
     uicontrol(fig, 'Style', 'text', 'String', 'Overlay Max:', ...
         'Units', 'normalized', 'Position', [0.77, 0.02, 0.07, 0.03], ...
         'BackgroundColor', 'w', 'FontSize', 10, 'HorizontalAlignment', 'right');
@@ -90,12 +97,13 @@ function view_simple_average_results(atlas)
 
     % Info Banner below image
     txtInfo = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
-        'Position', [0.08, 0.09, 0.88, 0.07], 'BackgroundColor', 'w', ...
-        'FontSize', 11, 'HorizontalAlignment', 'left');
+        'Position', [0.08, 0.10, 0.88, 0.04], 'BackgroundColor', 'w', ...
+        'FontSize', 12, 'HorizontalAlignment', 'left');
 
     updateDisplay();
 
     %% Callbacks
+
     function scrollCallback(~, event)
         slice = slice + event.VerticalScrollCount;
         slice = max(1, min(slice, volSize(2)));
@@ -121,14 +129,19 @@ function view_simple_average_results(atlas)
         
         fullPath = fullfile(filepath, filename);
         S = load(fullPath);
+
         if ~isfield(S, 'regional_avg') || ~isfield(S, 'TR_mean')
             errordlg('Selected file is not a valid simple_avg_*.mat result file.', 'Invalid File');
             return;
         end
+
         simpleAvgData = S;
         txtFileStatus.String = sprintf('Loaded file: %s', filename);
-        
+
+        % Generate 3D correlation map
         corrMap = generateCorrelationMap(S);
+
+        % Clear existing overlays before registering new result
         btnClearOverlays();
         addOverlay(corrMap);
         plotRegionTimeCourse();
@@ -143,11 +156,13 @@ function view_simple_average_results(atlas)
             cMax = prctile(nonZeroVals, 99);
             if cMin >= cMax, cMax = cMin + 1; end
         end
+
         hNew = image(ax, zeros([volSize(1) volSize(3) 3]));
         idx = numel(overlays) + 1;
         overlays(idx).data   = mapData;
         overlays(idx).handle = hNew;
         overlays(idx).clim   = [cMin cMax];
+
         hMinBox.String = num2str(cMin, '%.2f');
         hMaxBox.String = num2str(cMax, '%.2f');
         updateDisplay();
@@ -189,118 +204,114 @@ function view_simple_average_results(atlas)
         before_frames = round(S.before_stim_onset / S.TR_mean);
         after_frames  = round(S.after_stim_offset / S.TR_mean);
         W             = before_frames + stim_frames + after_frames;
+
         boxcar = [zeros(before_frames,1); ones(stim_frames,1); zeros(after_frames,1)];
         hrf_ch = fonduta.signal.hrf(S.TR_mean, S.chaoyi_hrfParams);
+
         ap_ch = conv(boxcar, hrf_ch);
         ap_ch = ap_ch(1:W);
         ap_ch = ap_ch / max(ap_ch);
-        
+
         corrMap = nan(size(atlas.Regions));
         region_fields = fieldnames(S.regional_avg);
-        
+
         for fi = 1:numel(region_fields)
             reg  = S.regional_avg.(region_fields{fi});
             TC   = reg.tc;
             nSub = size(TC, 2);
+
             if size(TC, 1) ~= W || nSub < 1, continue; end
-            
+
             sims = arrayfun(@(s) corr(TC(:,s), ap_ch, 'rows', 'complete'), 1:nSub);
             similarity = mean(sims, 'omitnan');
+
             acr_idx = find(strcmp(atlas.infoRegions.acr, reg.acr), 1);
             if isempty(acr_idx), continue; end
+
             corrMap(atlas.Regions == acr_idx) = similarity;
         end
     end
 
-    %% Helper: Plot Time Course & Compute Statistics
+    %% Helper: Plot Time Course with Optional Moving-Average Smoothing
     function plotRegionTimeCourse()
         cla(axTC);
         inside = crosshair(1)>=1 && crosshair(1)<=volSize(1) && ...
                  crosshair(2)>=1 && crosshair(2)<=volSize(2) && ...
                  crosshair(3)>=1 && crosshair(3)<=volSize(3);
+
         if ~inside || isempty(simpleAvgData)
             title(axTC, 'Regional Time Course (Load simple average results mat & click a region)', 'FontSize', 11);
             return;
         end
+
         label = double(atlas.Regions(crosshair(1), crosshair(2), crosshair(3)));
         if label <= 0 || label > numel(atlas.infoRegions.acr)
             title(axTC, 'Background (No Region Selected)', 'FontSize', 11);
             return;
         end
+
         acr = atlas.infoRegions.acr{label};
         field = matlab.lang.makeValidName(acr);
+
         if ~isfield(simpleAvgData.regional_avg, field)
             title(axTC, sprintf('Region %s (No data in simple-avg MAT)', acr), 'FontSize', 11);
             return;
         end
-        
+
         S   = simpleAvgData;
         reg = S.regional_avg.(field);
         TC  = reg.tc;
         nSub = size(TC, 2);
-        
-        % Smoothing logic
+
+        % Smoothing logic matching opts.smooth_win_s
         smooth_win_s = str2double(hSmoothBox.String);
         if isnan(smooth_win_s) || smooth_win_s < 0
             smooth_win_s = 0;
             hSmoothBox.String = '0';
         end
+
         if smooth_win_s > 0
             smooth_win_frames = max(1, round(smooth_win_s / S.TR_mean));
             TC = movmean(TC, smooth_win_frames, 1);
         end
-        
+
         mu = mean(TC, 2);
         se = std(TC, 0, 2) / sqrt(nSub);
 
-        % HRF Model Predictions
         stim_frames   = round(S.stim_dur_s / S.TR_mean);
         before_frames = round(S.before_stim_onset / S.TR_mean);
         after_frames  = round(S.after_stim_offset / S.TR_mean);
         W             = before_frames + stim_frames + after_frames;
+
         boxcar = [zeros(before_frames,1); ones(stim_frames,1); zeros(after_frames,1)];
-        
-        % 1. Chaoyi HRF
         hrf_ch = fonduta.signal.hrf(S.TR_mean, S.chaoyi_hrfParams);
-        ap_ch  = conv(boxcar, hrf_ch);
-        ap_ch  = ap_ch(1:W);
-        ap_ch  = ap_ch / max(ap_ch);
 
-        % 2. Chen2023 HRF
-        hrf_c23 = fonduta.signal.hrf(S.TR_mean, S.chen2023_hrfParams);
-        ap_c23  = conv(boxcar, hrf_c23);
-        ap_c23  = ap_c23(1:W);
-        ap_c23  = ap_c23 / max(ap_c23);
-
-        % Subject-level Correlation Statistics
-        sims_ch  = arrayfun(@(s) corr(TC(:,s), ap_ch,  'rows', 'complete'), 1:nSub);
-        sims_c23 = arrayfun(@(s) corr(TC(:,s), ap_c23, 'rows', 'complete'), 1:nSub);
-
-        mean_ch  = mean(sims_ch,  'omitnan');
-        std_ch   = std(sims_ch, 0, 'omitnan');
-        mean_c23 = mean(sims_c23, 'omitnan');
-        std_c23  = std(sims_c23, 0, 'omitnan');
-
-        % Scale HRF line for display
-        ap_ch_plot = ap_ch * max(abs(mu));
+        ap_ch = conv(boxcar, hrf_ch);
+        ap_ch = ap_ch(1:W);
+        ap_ch = ap_ch / max(ap_ch) * max(abs(mu));
 
         hold(axTC, 'on');
+
         % Stimulus period shading
         y_lo = min(mu-se) - 0.05;
         y_hi = max(mu+se) + 0.05;
         fill(axTC, [0, S.stim_dur_s, S.stim_dur_s, 0], ...
              [y_lo y_lo y_hi y_hi], [0.9 0.95 1.0], 'EdgeColor', 'none', 'FaceAlpha', 0.6);
+
         % Mean ± SE shaded error region
         fill(axTC, [S.t_window, fliplr(S.t_window)], ...
              [mu+se; flipud(mu-se)]', [0.2 0.4 0.8], 'FaceAlpha', 0.25, 'EdgeColor', 'none');
+
         % Time course plot line and model HRF
         plot(axTC, S.t_window, mu, 'b-', 'LineWidth', 2);
-        plot(axTC, S.t_window, ap_ch_plot, 'k--', 'LineWidth', 1.8);
+        plot(axTC, S.t_window, ap_ch, 'k--', 'LineWidth', 1.8);
+
         xline(axTC, 0, ':k', 'onset', 'LineWidth', 1);
         xline(axTC, S.stim_dur_s, ':k', 'offset', 'LineWidth', 1);
         yline(axTC, 0, ':k', 'LineWidth', 0.8);
+
         hold(axTC, 'off');
-        
+
         xlabel(axTC, 'Time relative to onset (s)');
         ylabel(axTC, '$\Delta P / P_0$ (\% CBV change)', 'Interpreter', 'latex');
         title(axTC, sprintf('[%s] %s -- %s (n=%d)', S.model_name, reg.acr, reg.name, nSub), ...
@@ -309,13 +320,6 @@ function view_simple_average_results(atlas)
                'Location', 'northeast', 'Interpreter', 'tex');
         grid(axTC, 'on');
         box(axTC, 'off');
-
-        % Update Info Banner
-        voxelText  = sprintf('Voxel [%d %d %d]', crosshair);
-        regionText = sprintf('    ID: %d  |  %s: %s  (n=%d)', label, reg.acr, reg.name, nSub);
-        corrText   = sprintf('\n\nChaoyi r: %.3f ± %.3f  |  Chen2023 r: %.3f ± %.3f', ...
-            mean_ch, std_ch, mean_c23, std_c23);
-        txtInfo.String = [voxelText regionText corrText];
     end
 
     %% Main Display Routine
@@ -327,7 +331,7 @@ function view_simple_average_results(atlas)
         normBase = (baseSlice - bMin) / (bMax - bMin);
         idxBase = floor(normBase * 255) + 1;
         hBase.CData = ind2rgb(idxBase, gray(256));
-        
+
         % 2. Truecolor overlay mapping with 'hot' colormap
         cmapHot = hot(256);
         for i = 1:numel(overlays)
@@ -345,18 +349,18 @@ function view_simple_average_results(atlas)
             overlays(i).handle.AlphaData = alphaMap;
             uistack(overlays(i).handle, 'top');
         end
-        
-        % 3. Update Side Colorbar
+
+        % 3. Update Side Colorbar (Positioned to the LEFT of the coronal slice image)
         if ~isempty(overlays)
             colormap(ax, hot(256));
             if isempty(cbarHandle) || ~isvalid(cbarHandle)
-                cbarHandle = colorbar(ax, 'westoutside', 'Position', [0.05, 0.20, 0.02, 0.70]);
+                cbarHandle = colorbar(ax, 'westoutside', 'Position', [0.035, 0.22, 0.02, 0.68]);
             end
             clim(ax, overlays(end).clim);
             cbarHandle.Label.String = 'Overlay Intensity';
             cbarHandle.FontSize = 10;
         end
-        
+
         % 4. Redraw vector lines, crosshairs, and labels
         updateRegionLines();
         updateCrosshair();
