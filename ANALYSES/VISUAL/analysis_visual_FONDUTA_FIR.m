@@ -26,10 +26,10 @@
 %   and stim_duration=15 s (typical), N = 54 nodes per predictor.
 %
 % MODELS:
-%   F1_StimOnly    : fir(stim_all)                             [T × N]
-%   F2_Behavior    : [fir(stim_all), wheel_c, fir(wheel_c), fir(stim.*wheel_c)]
+%   M1_StimOnly    : fir(stim_all)                             [T × N]
+%   M5_Behavior    : [fir(stim_all), wheel_c, fir(wheel_c), fir(stim.*wheel_c)]
 %                    [T × (3N+1)]  — continuous predictors pre-centred
-%   F3_SteadyVisual: fir(stim_stationary) on stationary frames only [T_steady × N]
+%   M8_SteadyVisual: fir(stim_stationary) on stationary frames only [T_steady × N]
 %
 % F-CONTRASTS:
 %   An omnibus F-test is computed for each FIR block, testing whether ANY of
@@ -78,7 +78,7 @@ minDuration  = 0.2;    % min running bout duration (s) to classify a trial as ru
 % FIR windowing parameters
 % stim_duration is auto-detected per session from PDI.stimInfo (see session loop).
 time_window_after_offset = 12;     % post-stimulus window to model (seconds)
-time_resampling          = 1;    % node/bin spacing (seconds) — default 0.5 s
+time_resampling          = 1;      % node/bin spacing (seconds) — default 0.5 s
 basis_type               = 'tent'; % 'tent' (default) or 'boxcar'
 
 % HRF kernel still needed for runningFrameMask computation (build_wheel_signal)
@@ -205,14 +205,14 @@ for isub = 1:numel(subDataPath)
 
         all_results = struct();
 
-        %% --- F1: Stimulus only (FIR basis, all trials) ---
-        fprintf('  F1: Stimulus only (FIR) : M1_StimOnly\n');
+        %% --- M1_StimOnly: Stimulus only (FIR basis, all trials) ---
+        fprintf('  M1: Stimulus only (FIR)\n');
         B_stim = fir(stim_all);     % [T × N]
         p_F1   = N_check;           % N predictor columns
 
         % Contrast: test all N stim_fir columns jointly
         % Xfull = [B_stim | intercept] → (p_F1 + 1) columns
-        C_F1_stim         = zeros(N_check, p_F1 + 1);
+        C_F1_stim               = zeros(N_check, p_F1 + 1);
         C_F1_stim(:, 1:N_check) = eye(N_check);
 
         contrast_F1(1).name = 'Visual_FIR';
@@ -221,12 +221,12 @@ for isub = 1:numel(subDataPath)
         labels_F1 = arrayfun(@(k) sprintf('stim_fir_%02d', k), 1:N_check, ...
                               'UniformOutput', false);
 
-        all_results.F1_StimOnly = fonduta.glm.ols( ...
-            'F1_StimOnly', PDI.PDI, bmask, ...
+        all_results.M1_StimOnly = fonduta.glm.ols( ...
+            'M1_StimOnly', PDI.PDI, bmask, ...
             B_stim, labels_F1, contrast_F1, true);
 
-        %% --- F2: Behavior (stimulus + wheel + interaction, all as FIR) ---
-        fprintf('  F2: Behavior (FIR) : M5_Behavior\n');
+        %% --- M5_Behavior: Behavior (stimulus + wheel + interaction, all as FIR) ---
+        fprintf('  M5: Behavior (FIR)\n');
         B_wheel = fir(wheel_c);      % [T × N]
         B_inter = fir(interaction);  % [T × N]
 
@@ -250,8 +250,8 @@ for isub = 1:numel(subDataPath)
         C_F2_inter(:, (2*N_check+2):(3*N_check+1)) = eye(N_check);
 
         contrast_F2(1).name = 'Visual_FIR';       contrast_F2(1).C = C_F2_stim;
-        contrast_F2(2).name = 'Wheel_FIR';         contrast_F2(2).C = C_F2_wheel;
-        contrast_F2(3).name = 'Interaction_FIR';   contrast_F2(3).C = C_F2_inter;
+        contrast_F2(2).name = 'Wheel_FIR';        contrast_F2(2).C = C_F2_wheel;
+        contrast_F2(3).name = 'Interaction_FIR';  contrast_F2(3).C = C_F2_inter;
 
         labels_stim  = arrayfun(@(k) sprintf('stim_fir_%02d',  k), 1:N_check, 'UniformOutput', false);
         labels_wheel = arrayfun(@(k) sprintf('wheel_fir_%02d', k), 1:N_check, 'UniformOutput', false);
@@ -260,13 +260,12 @@ for isub = 1:numel(subDataPath)
 
         X_F2 = [B_stim, wheel_c, B_wheel, B_inter];
         
-        all_results.F2_Behavior = fonduta.glm.ols( ...
-            'F2_Behavior', PDI.PDI, bmask, ...
+        all_results.M5_Behavior = fonduta.glm.ols( ...
+            'M5_Behavior', PDI.PDI, bmask, ...
             X_F2, labels_F2, contrast_F2, true);
             
-        %% --- F3: Stationary visual (FIR on stationary frames only) ---
-        %   Mirrors M8_SteadyVisual: fit only on frames uncontaminated by running.
-        fprintf('  F3: Stationary visual (FIR) : M8_SteadyVisual\n');
+        %% --- M8_SteadyVisual: Stationary visual (FIR on stationary frames only) ---
+        fprintf('  M8: Stationary visual (FIR)\n');
         stationaryFrames = ~runningFrameMask(:);
         PDI_steady       = PDI.PDI(:, :, stationaryFrames);
 
@@ -274,7 +273,7 @@ for isub = 1:numel(subDataPath)
         B_stim_steady = fir(stim_stationary(stationaryFrames));
 
         p_F3 = N_check;
-        C_F3_stim         = zeros(N_check, p_F3 + 1);
+        C_F3_stim               = zeros(N_check, p_F3 + 1);
         C_F3_stim(:, 1:N_check) = eye(N_check);
 
         contrast_F3(1).name = 'Visual_Steady_FIR';
@@ -283,8 +282,8 @@ for isub = 1:numel(subDataPath)
         labels_F3 = arrayfun(@(k) sprintf('stim_steady_fir_%02d', k), 1:N_check, ...
                               'UniformOutput', false);
         
-        all_results.F3_SteadyVisual = fonduta.glm.ols( ...
-            'F3_SteadyVisual', PDI_steady, bmask, ...
+        all_results.M8_SteadyVisual = fonduta.glm.ols( ...
+            'M8_SteadyVisual', PDI_steady, bmask, ...
             B_stim_steady, labels_F3, contrast_F3, true);
 
         disp('Done fitting FIR models')
@@ -301,17 +300,17 @@ for isub = 1:numel(subDataPath)
         glmresult.allen_regions = allen_regions;
 
         % Raw predictor time-series (same as HRF script for downstream compatibility)
-        glmresult.predictors.stim_all          = stim_all;
-        glmresult.predictors.stim_stationary   = stim_stationary;
-        glmresult.predictors.wheel             = wheel;
-        glmresult.predictors.wheel_centered    = wheel_c;
-        glmresult.predictors.wheelSmooth       = wheelSmooth;
-        glmresult.predictors.interaction       = interaction;
-        glmresult.predictors.runningFrameMask  = runningFrameMask;
-        glmresult.predictors.globalPC1         = globalPC1;
-        glmresult.predictors.nonBrainPC1       = nonBrainPC1;
-        glmresult.predictors.stationaryTrialIdx = stationaryTrialIdx;
-        glmresult.predictors.runningTrialIdx   = runningTrialIdx;
+        glmresult.predictors.stim_all           = stim_all;
+        glmresult.predictors.stim_stationary    = stim_stationary;
+        glmresult.predictors.wheel              = wheel;
+        glmresult.predictors.wheel_centered     = wheel_c;
+        glmresult.predictors.wheelSmooth        = wheelSmooth;
+        glmresult.predictors.interaction        = interaction;
+        glmresult.predictors.runningFrameMask   = runningFrameMask;
+        glmresult.predictors.globalPC1          = globalPC1;
+        glmresult.predictors.nonBrainPC1        = nonBrainPC1;
+        glmresult.predictors.stationaryTrialIdx  = stationaryTrialIdx;
+        glmresult.predictors.runningTrialIdx    = runningTrialIdx;
 
         % FIR parameters (stored at top level for reference)
         glmresult.fir_params.stim_duration            = stim_duration;
@@ -350,7 +349,6 @@ for isub = 1:numel(subDataPath)
     end
 
 end
-
 
 
 fprintf('\n=================================================\n');

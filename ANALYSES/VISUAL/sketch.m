@@ -142,14 +142,4 @@ save('pippo_mask.mat','eta2_mean_mask');
 
 fonduta.viz.view_atlas
 
-
-
-
-
-
-
-
-
-
-
-
+ 

@@ -23,48 +23,178 @@
 % validation, where the lambda optimization parameter is estimated from the
 % testing portion of the trials.
 
-%% Initialization
 
-% Import the package
+%% ========================================================================
+%  INITIALIZATION & PATH SETUP
+%  ========================================================================
+
+% Add external packages and local analysis functions
 FONDUTA_PATH = '/data00/leonardo/github/fUSI_analyses/FONDUTA';
 addpath(genpath(FONDUTA_PATH));
-
-% Add path with the functions for this analysis
 addpath(genpath('.'));
 
-% Load the atlas
+% Load reference atlas
 atlas = fonduta.atlas.load_atlas();
 
-% Load to get the location of anatomic and transformation
+% Data & GLM directory paths
+glm_results_path = '/data06/fUSIMethodsPaper/Data_analysis/LC/VisualTest';
+
+% Load dataset filepaths
 [datapaths, anatpaths, ~] = fonduta.io.datapath.Datapath('VisualTest');
 
-% Location of the glm results
-% NB: in the following, HRF_glm_files refers to the results of the glm
-% using the canonical HRF.
-glm_results_path = '/data06/fUSIMethodsPaper/Data_analysis/LC/VisualTest';
+% Extract run numbers from datapaths (vectorized)
+run_names   = cellfun(@(p) fileparts(p(1:end-1)), datapaths, 'UniformOutput', false);
+run_numbers = extractAfter(run_names, 'run-');
+
+% Locate GLM result files
 HRF_glm_files = dir(fullfile(glm_results_path, 'glm*.mat'));
 FIR_glm_files = dir(fullfile(glm_results_path, 'FIR_glm*.mat'));
 
-% Define models
-models = struct( ...
-    'name', {'M8_SteadyVisual', 'M5_Behavior', 'M1_StimOnly'}, ...
-    'predictor', {'stim_stationary_hrf', 'stim_hrf', 'stim_hrf'});
+% Define the models 
+
+% Canonical HRF Models
+hrf_models = struct( ...
+    'prefix',    {'HRF',         'HRF',                 'HRF'}, ...
+    'name',      {'M1_StimOnly', 'M8_SteadyVisual',     'M5_Behavior'}, ...
+    'predictor', {'stim_hrf',    'stim_stationary_hrf', 'stim_hrf'} ...
+);
+
+% Finite Impulse Response (FIR) Models
+fir_models = struct( ...
+    'prefix',    {'FIR',         'FIR',               'FIR',         'FIR'}, ...
+    'name',      {'M1_StimOnly', 'M8_SteadyVisual',   'M5_Behavior', 'M5_Behavior'}, ...
+    'predictor', {'Visual_FIR',  'Visual_Steady_FIR', 'Visual_FIR',  'Wheel_FIR'} ...
+);
+
+%% Similarity of eta2 with canonical HRF or FIR glm
+% In this part we tackle the crucial question of whether the signal is
+% modelled more appropriately using FIR (time-shifted delta functions) than
+% with the canonical HRF. 
+% The calculation of the maps has already been carried out in the
+% analysis_visual_FONDUTA_[FIR/HRF], and here we compare the results using
+% a simple method: the correlation of the eta2 maps from either GLMs.
+
+% IMPORTANT: HRF vs FIR eta2 map correspondence
+%
+% Both HRF and FIR analyses now use identical model names (M1_StimOnly, 
+% M5_Behavior, M8_SteadyVisual).
+%
+% We are interested only in models M1, M5, and M8:
+%
+%   HRF                         FIR
+%   M1_StimOnly                 M1_StimOnly
+%   M5_Behavior                 M5_Behavior
+%   M8_SteadyVisual             M8_SteadyVisual
+%
+% For M1_StimOnly and M8_SteadyVisual, there is only one relevant predictor 
+% (apart from the intercept), so the correspondence is straightforward:
+%
+%   HRF eta2(1,:,:)             FIR fcontrasts.<Visual_FIR/Visual_Steady_FIR>.eta2_p
+%
+% For M5_Behavior, the HRF model contains four non-intercept predictors,
+% while the FIR model stores the relevant effects as named F-contrasts.
+% The correspondence is:
+%
+%   HRF models.M5_Behavior        | FIR models.M5_Behavior
+%   ------------------------------|----------------------------------------
+%   eta2(1,:,:)                   | fcontrasts.Visual_FIR.eta2_p
+%   eta2(3,:,:)                   | fcontrasts.Wheel_FIR.eta2_p
+%   eta2(4,:,:)                   | fcontrasts.Interaction_FIR.eta2_p
+
+% Note that the HRF eta2(2,:,:) map is intentionally NOT used. The
+% relevant HRF predictors for M5 are therefore indices 1, 3, and 4.
+%
+% The brain mask is subject-specific, but is identical between the HRF
+% and FIR results for a given subject. Therefore, for each subject we use
+% that subject's HRF bmask to select voxels from both eta2 maps before
+% calculating their spatial correlation.
+%
+% The HRF and FIR eta2 maps have the same spatial dimensions (158 x 90).
 
 
-%% Eta2 mean and frequency maps in allen space
-%  Inspect the results with fonduta.viz.view_atlas
+%% ========================================================================
+%  ETA2 MEAN MAPS & SPATIAL CORRELATIONS IN ALLEN SPACE
+%  ========================================================================
 
 eta2_mean_results_path = fullfile(pwd, 'HRF_analysis_revision', 'eta2_mean_maps');
-mkdir(eta2_mean_results_path);
 
-eta2 = calculate_mean_eta2_maps(HRF_glm_files, ...
-    datapaths, ...
-    anatpaths, ...
-    atlas, ...
-    models, ...
-    eta2_mean_results_path);
+% Calculate/load HRF & FIR mean eta2 maps
+hrf_eta2 = calculate_mean_eta2_maps(HRF_glm_files, datapaths, anatpaths, atlas, hrf_models, eta2_mean_results_path, 'normalize', true);
+fir_eta2 = calculate_mean_eta2_maps(FIR_glm_files, datapaths, anatpaths, atlas, fir_models, eta2_mean_results_path, 'normalize', true);
 
-% fonduta.viz.view_atlas
+% Print Spatial Correlation across models
+allsubs_mask = fir_eta2.FIR_M1_StimOnly_Visual_FIR_norm.mask;
+
+comparisons = {
+    'M5_Behavior',        'HRF_M5_Behavior_stim_hrf_norm',        'FIR_M5_Behavior_Visual_FIR_norm';
+    'M1_AllStims',         'HRF_M1_StimOnly_stim_hrf_norm',        'FIR_M1_StimOnly_Visual_FIR_norm';
+    'M8_StationaryStims', 'HRF_M8_SteadyVisual_stim_stationary_hrf_norm', 'FIR_M8_SteadyVisual_Visual_Steady_FIR_norm'
+};
+
+for i = 1:size(comparisons, 1)
+    fprintf('\n')
+    modelName = comparisons{i, 1};
+    hrfMap    = hrf_eta2.(comparisons{i, 2}).mean;
+    firMap    = fir_eta2.(comparisons{i, 3}).mean;
+    
+    valid_vox = (allsubs_mask > 0) & ~isnan(hrfMap) & ~isnan(firMap);
+    r = corr(hrfMap(valid_vox), firMap(valid_vox));
+    
+    fprintf('Spatial correlation of %s group-level avg map in allen space: r = %.4f\n\n', modelName, r);
+end
+
+
+%% ========================================================================
+%  SUBJECT-LEVEL HRF vs FIR SPATIAL CORRELATION ANALYSIS
+%  ========================================================================
+
+corr_results_path = fullfile(pwd, 'HRF_analysis_revision', 'subject_level_similarities');
+
+% Compute or load saved correlation structs
+res_M1 = eta2_HRF_FIR_correlation(HRF_glm_files, FIR_glm_files, 'M1_StimOnly', corr_results_path);
+res_M8 = eta2_HRF_FIR_correlation(HRF_glm_files, FIR_glm_files, 'M8_SteadyVisual', corr_results_path);
+res_M5 = eta2_HRF_FIR_correlation(HRF_glm_files, FIR_glm_files, 'M5_Behavior', corr_results_path);
+
+% Generate figures and statistics
+plot_subject_level_similarity(res_M1, res_M5, res_M8, HRF_glm_files);
+
+
+%% ========================================================================
+%  SINGLE-SUBJECT HRF vs FIR ETA2 MAP VISUAL COMPARISON
+%  ========================================================================
+%  Visualizes a single representative subject to evaluate spatial patterns 
+%  independently of inter-subject amplitude variations or registration overlap.
+%  Since the overlap of the blades is not perfect, and there are big
+%  differences in the eta2 across subjects, the visualization of the mean
+%  eta2 in allen space is not optimal.
+%  The viz of a single representative subject is better.
+%  Because of the differences in eta2 between hrf and fir glm, we normalize
+%  the values in the range 0..1 since we are actually most interested in
+%  the pattern rather than the specific values.
+
+glm_results_path = '/data06/fUSIMethodsPaper/Data_analysis/LC/VisualTest';
+
+run_num = '115826';
+% run_num = '112118';
+% run_num = '152916';
+% run_num = '104841';
+% run_num = '154343';
+% run_num = '152201';
+% run_num = '122011';
+% run_num = '101347';
+% run_num = '142450';
+% run_num = '142742';
+% 
+% run_num = run_numbers{32};
+
+
+model = 'M5_Behavior';
+normalize = true;
+
+compare_hrf_fir_eta2(glm_results_path, run_num, model, normalize);
+
+
+
 
 %% Extract average peristimulus HRF for M8 (stationary) and M1 (all Stims)
 %  NB: DO NOT evaluate all this cell at once. Follow the instructions.
@@ -151,129 +281,9 @@ view_simple_average_results()
 
 
 
-%% Correlation between HRF and FIR eta2 maps
-% In this part we tackle the crucial question of whether the signal is
-% modelled more appropriately using FIR (time-shifted delta functions) than
-% with the canonical HRF. 
-% The calculation of the maps has already been carried out in the
-% analysis_visual_FONDUTA_[FIR/HRF], and here we compare the results using
-% a simple method: the correlation of the eta2 maps from either GLMs.
-
-% IMPORTANT: HRF vs FIR eta2 map correspondence
-%
-% The HRF and FIR analyses use different model structures and predictor
-% representations, so the relevant eta2 maps cannot be matched simply by
-% predictor index.
-%
-% We are interested only in models M1, M5, and M8. The corresponding
-% models are:
-%
-%   HRF                         FIR
-%   M1_StimOnly                 F1_StimOnly
-%   M5_Behavior                 F2_Behavior
-%   M8_SteadyVisual             F3_SteadyVisual
-%
-% For M1 and M8 there is only one relevant predictor (apart from the
-% intercept), so the correspondence is straightforward:
-%
-%   HRF eta2(1,:,:)             FIR fcontrast eta2_p
-%
-% For M5_Behavior, the HRF model contains four non-intercept predictors,
-% while the FIR model stores the relevant effects as named F-contrasts.
-% The correspondence is:
-%
-%   HRF eta2(1,:,:)             FIR fcontrasts.Visual_FIR.eta2_p
-%   HRF eta2(3,:,:)             FIR fcontrasts.Wheel_FIR.eta2_p
-%   HRF eta2(4,:,:)             FIR fcontrasts.Interaction_FIR.eta2_p
-
-
-% M5_Behavior eta2 map correspondence:
-%
-%   HRF models.M5_Behavior        | FIR models.F2_Behavior
-%   ------------------------------|----------------------------------------
-%   eta2(1,:,:)                   | fcontrasts.Visual_FIR.eta2_p
-%   eta2(3,:,:)                   | fcontrasts.Wheel_FIR.eta2_p
-%   eta2(4,:,:)                   | fcontrasts.Interaction_FIR.eta2_p
-
-
-% Note that the HRF eta2(2,:,:) map is intentionally NOT used. The
-% relevant HRF predictors for M5 are therefore indices 1, 3, and 4.
-%
-% The brain mask is subject-specific, but is identical between the HRF
-% and FIR results for a given subject. Therefore, for each subject we use
-% that subject's HRF bmask to select voxels from both eta2 maps before
-% calculating their spatial correlation.
-%
-% The HRF and FIR eta2 maps have the same spatial dimensions (158 x 90).
-
-
-glm_results_path = '/data06/fUSIMethodsPaper/Data_analysis/LC/VisualTest';
-HRF_glm_files = dir(fullfile(glm_results_path, 'glm*.mat'));
-FIR_glm_files = dir(fullfile(glm_results_path, 'FIR_glm*.mat'));
-
-model_name = 'M1_StimOnly'; % Options: 'M1_StimOnly', 'M5_Behavior', or 'M8_SteadyVisual'
-
-res_M1 = eta2_HRF_FIR_correlation(HRF_glm_files, FIR_glm_files, 'M1_StimOnly');
-res_M8 = eta2_HRF_FIR_correlation(HRF_glm_files, FIR_glm_files, 'M8_SteadyVisual');
-res_M5 = eta2_HRF_FIR_correlation(HRF_glm_files, FIR_glm_files, 'M5_Behavior');
-
-
-% Boxplot across models
-% 1. Combine data and clean subject labels
-data_matrix = [res_M1.eta2_corrs(:,1), res_M8.eta2_corrs(:,1), res_M5.eta2_corrs(:,1)];
-sub_labels  = erase({HRF_glm_files.name}, {'glm_run-', '.mat'});
-
-% 2. Plot boxplot and request output handles 'h'
-figure('Color', 'w');
-h = boxplot(data_matrix, 'Labels', {'M1', 'M8', 'M5'});
-ylabel('Spatial Correlation (r)');
-grid on; box off;
-
-% 3. Label outliers directly using boxplot handles
-outliers = findobj(h, 'Tag', 'Outliers');
-
-for iCol = 1:numel(outliers)
-    x = get(outliers(iCol), 'XData');
-    y = get(outliers(iCol), 'YData');
-    
-    for k = 1:numel(y)
-        % Find subject index by matching Y value
-        sub_idx = find(data_matrix(:, x(k)) == y(k), 1);
-        text(x(k) + 0.08, y(k), sub_labels{sub_idx}, ...
-            'Interpreter', 'none', 'FontSize', 8, 'VerticalAlignment', 'middle');
-    end
-end
-
-% print the median corr +- std
-models = {res_M1, res_M8, res_M5};
-names  = {'M1', 'M8', 'M5'};
-
-for i = 1:numel(models)
-    r = models{i}.eta2_corrs(:, 1);
-    fprintf('%s: %.3f (IQR: %.3f)\n', names{i}, median(r), iqr(r));
-end
-
-% Plot ROC curve
-figure('Color', 'w');
-plot(res_M1.pctile_steps, ...
-    mean(res_M1.pctile_corr(:, :, 1), 1, 'omitnan'), ...
-    'b-o', 'LineWidth', 2, 'MarkerFaceColor', 'b');
-
-grid on; box off;
-xlabel('Lowest \eta^2 Voxels Excluded (%)');
-ylabel('Spatial Correlation (r)');
-title('HRF vs FIR Spatial Correlation vs Activation Threshold');
 
 
 
 
 
 
-%%
-glm_results_path = '/data06/fUSIMethodsPaper/Data_analysis/LC/VisualTest';
-
-HRF_sub_results_file='glm_run-153002.mat';
-fonduta.viz.view_glm(fullfile(glm_results_path, HRF_sub_results_file))
-
-FIR_sub_results_file='FIR_glm_run-153002.mat';
-fonduta.viz.view_glm(fullfile(glm_results_path, FIR_sub_results_file))

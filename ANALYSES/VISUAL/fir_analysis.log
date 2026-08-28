@@ -1,0 +1,385 @@
+nohup: ignoring input
+
+                            < M A T L A B (R) >
+                  Copyright 1984-2022 The MathWorks, Inc.
+             R2022b Update 3 (9.13.0.2126072) 64-bit (glnxa64)
+                             November 17, 2022
+
+ 
+To get started, type doc.
+For product information, visit www.mathworks.com.
+ 
+
+=================================================
+ analysis_visual_FONDUTA_FIR.m  |  condition: VisualTest
+ FIR basis : tent
+ Post-stim window: 12 s  |  time_resampling: 1 s/node
+ stim_duration: auto-detected per session from PDI.stimInfo
+ Sessions found: 34
+
+ Results will be saved in:
+
+ /data06/fUSIMethodsPaper/Data_analysis/LC/VisualTest
+=================================================
+
+
+--- Session 1 / 34 ---
+Session: running 10 / stationary 0 / total 10 — SKIPPED (all trials running)
+
+--- Session 2 / 34 ---
+Session: running 4 / stationary 6 / total 10
+[atlas2individual] mode   : volume
+[atlas2individual] output : subject space  [158 x 90 x 19]
+  Stim duration: 15.00 s (mean over 10 trials; range 14.99 – 15.02 s)
+  FIR basis: N = 27 nodes per predictor
+  M1: Stimulus only (FIR)
+  M5: Behavior (FIR)
+  M8: Stationary visual (FIR)
+Done fitting FIR models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/LC/VisualTest/FIR_glm_run-152539.mat
+
+--- Session 3 / 34 ---
+Session: running 10 / stationary 0 / total 10 — SKIPPED (all trials running)
+
+--- Session 4 / 34 ---
+Session: running 10 / stationary 0 / total 10 — SKIPPED (all trials running)
+
+--- Session 5 / 34 ---
+Session: running 7 / stationary 3 / total 10
+[atlas2individual] mode   : volume
+[atlas2individual] output : subject space  [158 x 90 x 21]
+  Stim duration: 15.00 s (mean over 10 trials; range 14.99 – 15.01 s)
+  FIR basis: N = 27 nodes per predictor
+  M1: Stimulus only (FIR)
+  M5: Behavior (FIR)
+  M8: Stationary visual (FIR)
+Done fitting FIR models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/LC/VisualTest/FIR_glm_run-142825.mat
+
+--- Session 6 / 34 ---
+Session: running 6 / stationary 4 / total 10
+[atlas2individual] mode   : volume
+[atlas2individual] output : subject space  [158 x 90 x 21]
+  Stim duration: 15.00 s (mean over 10 trials; range 14.99 – 15.01 s)
+  FIR basis: N = 27 nodes per predictor
+  M1: Stimulus only (FIR)
+  M5: Behavior (FIR)
+  M8: Stationary visual (FIR)
+Done fitting FIR models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/LC/VisualTest/FIR_glm_run-114946.mat
+
+--- Session 7 / 34 ---
+Session: running 10 / stationary 0 / total 10 — SKIPPED (all trials running)
+
+--- Session 8 / 34 ---
+Session: running 10 / stationary 0 / total 10 — SKIPPED (all trials running)
+
+--- Session 9 / 34 ---
+Session: running 3 / stationary 2 / total 5
+[atlas2individual] mode   : volume
+[atlas2individual] output : subject space  [158 x 80 x 19]
+  Stim duration: 15.00 s (mean over 5 trials; range 14.99 – 15.02 s)
+  FIR basis: N = 27 nodes per predictor
+  M1: Stimulus only (FIR)
+  M5: Behavior (FIR)
+  M8: Stationary visual (FIR)
+Done fitting FIR models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/LC/VisualTest/FIR_glm_run-125114.mat
+
+--- Session 10 / 34 ---
+Session: running 5 / stationary 0 / total 5 — SKIPPED (all trials running)
+
+--- Session 11 / 34 ---
+Session: running 9 / stationary 1 / total 10
+[atlas2individual] mode   : volume
+[atlas2individual] output : subject space  [158 x 80 x 19]
+  Stim duration: 15.00 s (mean over 10 trials; range 14.99 – 15.02 s)
+  FIR basis: N = 27 nodes per predictor
+  M1: Stimulus only (FIR)
+  M5: Behavior (FIR)
+  M8: Stationary visual (FIR)
+Done fitting FIR models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/LC/VisualTest/FIR_glm_run-164739.mat
+
+--- Session 12 / 34 ---
+Session: running 4 / stationary 1 / total 5
+[atlas2individual] mode   : volume
+[atlas2individual] output : subject space  [158 x 90 x 22]
+  Stim duration: 15.00 s (mean over 5 trials; range 14.99 – 15.01 s)
+  FIR basis: N = 27 nodes per predictor
+  M1: Stimulus only (FIR)
+  M5: Behavior (FIR)
+  M8: Stationary visual (FIR)
+Done fitting FIR models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/LC/VisualTest/FIR_glm_run-124507.mat
+
+--- Session 13 / 34 ---
+Session: running 3 / stationary 2 / total 5
+[atlas2individual] mode   : volume
+[atlas2individual] output : subject space  [158 x 90 x 22]
+  Stim duration: 15.00 s (mean over 5 trials; range 15.00 – 15.00 s)
+  FIR basis: N = 27 nodes per predictor
+  M1: Stimulus only (FIR)
+  M5: Behavior (FIR)
+  M8: Stationary visual (FIR)
+Done fitting FIR models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/LC/VisualTest/FIR_glm_run-142450.mat
+
+--- Session 14 / 34 ---
+Session: running 2 / stationary 3 / total 5
+[atlas2individual] mode   : volume
+[atlas2individual] output : subject space  [158 x 90 x 22]
+  Stim duration: 15.00 s (mean over 5 trials; range 14.99 – 15.01 s)
+  FIR basis: N = 27 nodes per predictor
+  M1: Stimulus only (FIR)
+  M5: Behavior (FIR)
+  M8: Stationary visual (FIR)
+Done fitting FIR models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/LC/VisualTest/FIR_glm_run-114737.mat
+
+--- Session 15 / 34 ---
+Session: running 7 / stationary 3 / total 10
+[atlas2individual] mode   : volume
+[atlas2individual] output : subject space  [158 x 80 x 19]
+  Stim duration: 15.00 s (mean over 10 trials; range 15.00 – 15.01 s)
+  FIR basis: N = 27 nodes per predictor
+  M1: Stimulus only (FIR)
+  M5: Behavior (FIR)
+  M8: Stationary visual (FIR)
+Done fitting FIR models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/LC/VisualTest/FIR_glm_run-153002.mat
+
+--- Session 16 / 34 ---
+Session: running 6 / stationary 4 / total 10
+[atlas2individual] mode   : volume
+[atlas2individual] output : subject space  [158 x 90 x 19]
+  Stim duration: 15.00 s (mean over 10 trials; range 15.00 – 15.01 s)
+  FIR basis: N = 27 nodes per predictor
+  M1: Stimulus only (FIR)
+  M5: Behavior (FIR)
+  M8: Stationary visual (FIR)
+Done fitting FIR models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/LC/VisualTest/FIR_glm_run-142742.mat
+
+--- Session 17 / 34 ---
+Session: running 6 / stationary 4 / total 10
+[atlas2individual] mode   : volume
+[atlas2individual] output : subject space  [158 x 80 x 19]
+  Stim duration: 15.00 s (mean over 10 trials; range 14.99 – 15.02 s)
+  FIR basis: N = 27 nodes per predictor
+  M1: Stimulus only (FIR)
+  M5: Behavior (FIR)
+  M8: Stationary visual (FIR)
+Done fitting FIR models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/LC/VisualTest/FIR_glm_run-152916.mat
+
+--- Session 18 / 34 ---
+Session: running 10 / stationary 0 / total 10 — SKIPPED (all trials running)
+
+--- Session 19 / 34 ---
+Session: running 9 / stationary 1 / total 10
+[atlas2individual] mode   : volume
+[atlas2individual] output : subject space  [158 x 90 x 22]
+  Stim duration: 15.00 s (mean over 10 trials; range 15.00 – 15.02 s)
+  FIR basis: N = 27 nodes per predictor
+  M1: Stimulus only (FIR)
+  M5: Behavior (FIR)
+  M8: Stationary visual (FIR)
+Done fitting FIR models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/LC/VisualTest/FIR_glm_run-144522.mat
+
+--- Session 20 / 34 ---
+Session: running 8 / stationary 2 / total 10
+[atlas2individual] mode   : volume
+[atlas2individual] output : subject space  [158 x 90 x 22]
+  Stim duration: 15.00 s (mean over 10 trials; range 15.00 – 15.01 s)
+  FIR basis: N = 27 nodes per predictor
+  M1: Stimulus only (FIR)
+  M5: Behavior (FIR)
+  M8: Stationary visual (FIR)
+Done fitting FIR models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/LC/VisualTest/FIR_glm_run-150701.mat
+
+--- Session 21 / 34 ---
+Session: running 9 / stationary 1 / total 10
+[atlas2individual] mode   : volume
+[atlas2individual] output : subject space  [158 x 90 x 22]
+  Stim duration: 15.00 s (mean over 10 trials; range 15.00 – 15.01 s)
+  FIR basis: N = 27 nodes per predictor
+  M1: Stimulus only (FIR)
+  M5: Behavior (FIR)
+  M8: Stationary visual (FIR)
+Done fitting FIR models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/LC/VisualTest/FIR_glm_run-104841.mat
+
+--- Session 22 / 34 ---
+Session: running 4 / stationary 6 / total 10
+[atlas2individual] mode   : volume
+[atlas2individual] output : subject space  [158 x 90 x 22]
+  Stim duration: 15.00 s (mean over 10 trials; range 14.99 – 15.02 s)
+  FIR basis: N = 27 nodes per predictor
+  M1: Stimulus only (FIR)
+  M5: Behavior (FIR)
+  M8: Stationary visual (FIR)
+Done fitting FIR models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/LC/VisualTest/FIR_glm_run-111054.mat
+
+--- Session 23 / 34 ---
+Session: running 9 / stationary 1 / total 10
+[atlas2individual] mode   : volume
+[atlas2individual] output : subject space  [158 x 90 x 22]
+  Stim duration: 15.00 s (mean over 10 trials; range 14.99 – 15.01 s)
+  FIR basis: N = 27 nodes per predictor
+  M1: Stimulus only (FIR)
+  M5: Behavior (FIR)
+  M8: Stationary visual (FIR)
+Done fitting FIR models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/LC/VisualTest/FIR_glm_run-140450.mat
+
+--- Session 24 / 34 ---
+Session: running 4 / stationary 6 / total 10
+[atlas2individual] mode   : volume
+[atlas2individual] output : subject space  [158 x 90 x 22]
+  Stim duration: 15.00 s (mean over 10 trials; range 14.99 – 15.01 s)
+  FIR basis: N = 27 nodes per predictor
+  M1: Stimulus only (FIR)
+  M5: Behavior (FIR)
+  M8: Stationary visual (FIR)
+Done fitting FIR models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/LC/VisualTest/FIR_glm_run-142648.mat
+
+--- Session 25 / 34 ---
+Session: running 5 / stationary 5 / total 10
+[atlas2individual] mode   : volume
+[atlas2individual] output : subject space  [158 x 90 x 22]
+  Stim duration: 15.00 s (mean over 10 trials; range 14.99 – 15.01 s)
+  FIR basis: N = 27 nodes per predictor
+  M1: Stimulus only (FIR)
+  M5: Behavior (FIR)
+  M8: Stationary visual (FIR)
+Done fitting FIR models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/LC/VisualTest/FIR_glm_run-161356.mat
+
+--- Session 26 / 34 ---
+Session: running 5 / stationary 5 / total 10
+[atlas2individual] mode   : volume
+[atlas2individual] output : subject space  [158 x 90 x 22]
+  Stim duration: 15.00 s (mean over 10 trials; range 14.99 – 15.01 s)
+  FIR basis: N = 27 nodes per predictor
+  M1: Stimulus only (FIR)
+  M5: Behavior (FIR)
+  M8: Stationary visual (FIR)
+Done fitting FIR models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/LC/VisualTest/FIR_glm_run-163615.mat
+
+--- Session 27 / 34 ---
+Session: running 5 / stationary 5 / total 10
+[atlas2individual] mode   : volume
+[atlas2individual] output : subject space  [158 x 90 x 22]
+  Stim duration: 15.00 s (mean over 10 trials; range 15.00 – 15.01 s)
+  FIR basis: N = 27 nodes per predictor
+  M1: Stimulus only (FIR)
+  M5: Behavior (FIR)
+  M8: Stationary visual (FIR)
+Done fitting FIR models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/LC/VisualTest/FIR_glm_run-115826.mat
+
+--- Session 28 / 34 ---
+Session: running 4 / stationary 6 / total 10
+[atlas2individual] mode   : volume
+[atlas2individual] output : subject space  [158 x 90 x 22]
+  Stim duration: 15.00 s (mean over 10 trials; range 15.00 – 15.01 s)
+  FIR basis: N = 27 nodes per predictor
+  M1: Stimulus only (FIR)
+  M5: Behavior (FIR)
+  M8: Stationary visual (FIR)
+Done fitting FIR models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/LC/VisualTest/FIR_glm_run-122011.mat
+
+--- Session 29 / 34 ---
+Session: running 7 / stationary 3 / total 10
+[atlas2individual] mode   : volume
+[atlas2individual] output : subject space  [158 x 90 x 22]
+  Stim duration: 15.00 s (mean over 10 trials; range 14.99 – 15.01 s)
+  FIR basis: N = 27 nodes per predictor
+  M1: Stimulus only (FIR)
+  M5: Behavior (FIR)
+  M8: Stationary visual (FIR)
+Done fitting FIR models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/LC/VisualTest/FIR_glm_run-152201.mat
+
+--- Session 30 / 34 ---
+Session: running 5 / stationary 5 / total 10
+[atlas2individual] mode   : volume
+[atlas2individual] output : subject space  [158 x 90 x 22]
+  Stim duration: 15.00 s (mean over 10 trials; range 14.99 – 15.01 s)
+  FIR basis: N = 27 nodes per predictor
+  M1: Stimulus only (FIR)
+  M5: Behavior (FIR)
+  M8: Stationary visual (FIR)
+Done fitting FIR models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/LC/VisualTest/FIR_glm_run-154343.mat
+
+--- Session 31 / 34 ---
+Session: running 11 / stationary 9 / total 20
+[atlas2individual] mode   : volume
+[atlas2individual] output : subject space  [158 x 90 x 22]
+  Stim duration: 15.00 s (mean over 20 trials; range 14.99 – 15.01 s)
+  FIR basis: N = 27 nodes per predictor
+  M1: Stimulus only (FIR)
+  M5: Behavior (FIR)
+  M8: Stationary visual (FIR)
+Done fitting FIR models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/LC/VisualTest/FIR_glm_run-101347.mat
+
+--- Session 32 / 34 ---
+Session: running 13 / stationary 7 / total 20
+[atlas2individual] mode   : volume
+[atlas2individual] output : subject space  [158 x 90 x 22]
+  Stim duration: 15.00 s (mean over 20 trials; range 14.99 – 15.01 s)
+  FIR basis: N = 27 nodes per predictor
+  M1: Stimulus only (FIR)
+  M5: Behavior (FIR)
+  M8: Stationary visual (FIR)
+Done fitting FIR models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/LC/VisualTest/FIR_glm_run-112118.mat
+
+--- Session 33 / 34 ---
+Session: running 9 / stationary 21 / total 30
+[atlas2individual] mode   : volume
+[atlas2individual] output : subject space  [158 x 90 x 19]
+  Stim duration: 15.00 s (mean over 30 trials; range 14.99 – 15.02 s)
+  FIR basis: N = 27 nodes per predictor
+  M1: Stimulus only (FIR)
+  M5: Behavior (FIR)
+  M8: Stationary visual (FIR)
+Done fitting FIR models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/LC/VisualTest/FIR_glm_run-142136.mat
+
+--- Session 34 / 34 ---
+Session: running 27 / stationary 3 / total 30
+[atlas2individual] mode   : volume
+[atlas2individual] output : subject space  [158 x 90 x 22]
+  Stim duration: 15.00 s (mean over 30 trials; range 14.99 – 15.01 s)
+  FIR basis: N = 27 nodes per predictor
+  M1: Stimulus only (FIR)
+  M5: Behavior (FIR)
+  M8: Stationary visual (FIR)
+Done fitting FIR models
+Saved: /data06/fUSIMethodsPaper/Data_analysis/LC/VisualTest/FIR_glm_run-143014.mat
+
+=================================================
+ Included sessions (27 / 34):
+  Columns 1 through 13
+
+     2     5     6     9    11    12    13    14    15    16    17    19    20
+
+  Columns 14 through 26
+
+    21    22    23    24    25    26    27    28    29    30    31    32    33
+
+  Column 27
+
+    34
+
+=================================================
