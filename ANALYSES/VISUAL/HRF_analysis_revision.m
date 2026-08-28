@@ -87,15 +87,21 @@ opts.resultPath = hrf_analysis_path;
 % - For all other regions, the voxels with the top 5% eta2 values are selected
 %   for the average time course.
 
-% Choose one of M1 or M8
+opts.eta2_thresh_val = 0.03;
+opts.min_active_voxels = 5;
+
+% Choose one model among M1, M5, M8
 % Note that we are _not_ modelling here. M8 is to isolate the peristimulus
 % time course in stationary trials. M1 considers all trials.
 % (Maybe it could be interesting to have all the time courses for running trials)
+% For models with nuisance parameters (like M5), choose also the labels of
+% the nuisance predictors.
 
-opts.model = 'M8_SteadyVisual';
+% opts.model = 'M8_SteadyVisual';
 % opts.model = 'M1_StimOnly';
-opts.eta2_thresh_val = 0.03;
-opts.min_active_voxels = 5;
+
+opts.model           = 'M5_Behavior';
+opts.nuisance_labels = {'wheel', 'wheel_hrf', 'interaction_hrf'};
 
 analysis_simple_average(glm_results_path,opts);
 
@@ -201,100 +207,73 @@ view_simple_average_results()
 % The HRF and FIR eta2 maps have the same spatial dimensions (158 x 90).
 
 
-model_HRF = models(3).name;
-disp(model_HRF)
+glm_results_path = '/data06/fUSIMethodsPaper/Data_analysis/LC/VisualTest';
+HRF_glm_files = dir(fullfile(glm_results_path, 'glm*.mat'));
+FIR_glm_files = dir(fullfile(glm_results_path, 'FIR_glm*.mat'));
 
-switch model_HRF
+model_name = 'M1_StimOnly'; % Options: 'M1_StimOnly', 'M5_Behavior', or 'M8_SteadyVisual'
 
-    case 'M1_StimOnly'
+res_M1 = eta2_HRF_FIR_correlation(HRF_glm_files, FIR_glm_files, 'M1_StimOnly');
+res_M8 = eta2_HRF_FIR_correlation(HRF_glm_files, FIR_glm_files, 'M8_SteadyVisual');
+res_M5 = eta2_HRF_FIR_correlation(HRF_glm_files, FIR_glm_files, 'M5_Behavior');
 
-        model_FIR = 'F1_StimOnly';
 
-        HRF_eta2_idx = 1;
-        FIR_contrasts = {'Visual_FIR'};
+% Boxplot across models
+% 1. Combine data and clean subject labels
+data_matrix = [res_M1.eta2_corrs(:,1), res_M8.eta2_corrs(:,1), res_M5.eta2_corrs(:,1)];
+sub_labels  = erase({HRF_glm_files.name}, {'glm_run-', '.mat'});
 
-    case 'M5_Behavior'
+% 2. Plot boxplot and request output handles 'h'
+figure('Color', 'w');
+h = boxplot(data_matrix, 'Labels', {'M1', 'M8', 'M5'});
+ylabel('Spatial Correlation (r)');
+grid on; box off;
 
-        model_FIR = 'F2_Behavior';
+% 3. Label outliers directly using boxplot handles
+outliers = findobj(h, 'Tag', 'Outliers');
 
-        HRF_eta2_idx = [1 3 4];
-        FIR_contrasts = { ...
-            'Visual_FIR', ...
-            'Wheel_FIR', ...
-            'Interaction_FIR'};
-
-    case 'M8_SteadyVisual'
-
-        model_FIR = 'F3_SteadyVisual';
-
-        HRF_eta2_idx = 1;
-        FIR_contrasts = {'Visual_Steady_FIR'};
-
-    otherwise
-
-        error('No HRF/FIR mapping defined for model "%s".', ...
-            model_HRF);
-
-end
-
-nSubs = numel(HRF_glm_files);
-nPredictors = numel(HRF_eta2_idx);
-
-% Initialize:
-% rows    = subjects
-% columns = corresponding HRF/FIR eta2 maps
-eta2_corrs = nan(nSubs, nPredictors);
-
-for isub = 1:nSubs
-
-    disp(isub)
-
-    HRF_onesub = load(fullfile( ...
-        HRF_glm_files(isub).folder, ...
-        HRF_glm_files(isub).name)).data;
-
-    FIR_onesub = load(fullfile( ...
-        FIR_glm_files(isub).folder, ...
-        FIR_glm_files(isub).name)).data;
-
-    % Subject-specific mask.
-    % This mask is the same for HRF and FIR for this subject.
-    bmask_idx = find(HRF_onesub.bmask);
-
-    for ipred = 1:nPredictors
-
-        % HRF eta2 map
-        HRF_eta2_map = squeeze( ...
-            HRF_onesub.models.(model_HRF).eta2( ...
-            HRF_eta2_idx(ipred), :, :));
-
-        % FIR eta2 map
-        contrast_name = FIR_contrasts{ipred};
-
-        FIR_eta2_map = FIR_onesub.models.(model_FIR) ...
-            .fcontrasts.(contrast_name).eta2_p;
-
-        % Restrict both maps to the subject-specific brain mask
-        HRF_eta2_vec = HRF_eta2_map(bmask_idx);
-        FIR_eta2_vec = FIR_eta2_map(bmask_idx);
-
-        % Correlation between the two eta2 maps
-        eta2_corrs(isub, ipred) = corr( ...
-            HRF_eta2_vec, ...
-            FIR_eta2_vec, ...
-            'rows', 'complete');
-
+for iCol = 1:numel(outliers)
+    x = get(outliers(iCol), 'XData');
+    y = get(outliers(iCol), 'YData');
+    
+    for k = 1:numel(y)
+        % Find subject index by matching Y value
+        sub_idx = find(data_matrix(:, x(k)) == y(k), 1);
+        text(x(k) + 0.08, y(k), sub_labels{sub_idx}, ...
+            'Interpreter', 'none', 'FontSize', 8, 'VerticalAlignment', 'middle');
     end
 end
 
-mean(eta2_corrs,1)
+% print the median corr +- std
+models = {res_M1, res_M8, res_M5};
+names  = {'M1', 'M8', 'M5'};
+
+for i = 1:numel(models)
+    r = models{i}.eta2_corrs(:, 1);
+    fprintf('%s: %.3f (IQR: %.3f)\n', names{i}, median(r), iqr(r));
+end
+
+% Plot ROC curve
+figure('Color', 'w');
+plot(res_M1.pctile_steps, ...
+    mean(res_M1.pctile_corr(:, :, 1), 1, 'omitnan'), ...
+    'b-o', 'LineWidth', 2, 'MarkerFaceColor', 'b');
+
+grid on; box off;
+xlabel('Lowest \eta^2 Voxels Excluded (%)');
+ylabel('Spatial Correlation (r)');
+title('HRF vs FIR Spatial Correlation vs Activation Threshold');
+
+
+
+
 
 
 %%
+glm_results_path = '/data06/fUSIMethodsPaper/Data_analysis/LC/VisualTest';
 
-sub=1
+HRF_sub_results_file='glm_run-153002.mat';
+fonduta.viz.view_glm(fullfile(glm_results_path, HRF_sub_results_file))
 
-fonduta.viz.view_glm( fullfile( HRF_glm_files(sub).folder, HRF_glm_files(sub).name) )
-
-fonduta.viz.view_glm( fullfile( FIR_glm_files(sub).folder, FIR_glm_files(sub).name) )
-
+FIR_sub_results_file='FIR_glm_run-153002.mat';
+fonduta.viz.view_glm(fullfile(glm_results_path, FIR_sub_results_file))

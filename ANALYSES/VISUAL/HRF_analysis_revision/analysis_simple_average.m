@@ -13,23 +13,50 @@ function analysis_simple_average(glm_results_path, opts)
 %
 %   glm_results_path  folder with glm_*.mat files
 %   opts              struct with:
-%       .model                e.g. 'M8_SteadyVisual', 'M1_StimOnly'
+%       .model                e.g. 'M5_Behavior', 'M8_SteadyVisual'
 %       .eta2_thresh_val      (default 0.03)
 %       .before_stim_onset    (default 5  s)
 %       .after_stim_offset    (default 20 s)
 %       .min_stationary_trials (default 3)
 %       .min_active_voxels    (default 5)
 %       .resultPath           output directory (default pwd)
+%       .nuisance_labels      cell array of predictor label strings to project
+%                             OUT of the signal before epoch-averaging.
+%                             Labels must match entries in
+%                             glm.models.(model).predictor_labels.
+%                             Default: {} (no nuisance removal — raw signal).
+%
+%                             IMPORTANT: nuisance_labels always refers to
+%                             predictors of opts.model itself.  The same
+%                             model supplies the eta2 map, the Xmodel
+%                             (z-scored design matrix), and the betas used
+%                             for back-projection.  Never mix models.
+%
+%                             Example — clean running regressors from M5
+%                             before epoch-averaging:
+%                               opts.model = 'M5_Behavior';
+%                               opts.nuisance_labels = {'wheel','wheel_hrf','interaction_hrf'};
+%
+%                             The predictor NOT listed (stim_hrf) stays in
+%                             the signal; 'intercept' is never listed (it
+%                             is not a column of Xmodel).
 %
 % OUTPUT:
 %   <resultPath>/simple_avg_<model_name>_<eta_str>.mat
-%   e.g. simple_avg_M8_SteadyVisual_eta003.mat
+%   The saved file always contains a 'nuisance_labels' variable (empty cell
+%   {} if no cleaning was applied) so the user can inspect what was done
+%   after loading.
 %
-% EXAMPLE:
+% EXAMPLE (no nuisance removal — original behaviour):
 %   opts.model = 'M8_SteadyVisual';
 %   opts.eta2_thresh_val = 0.03;
 %   opts.resultPath = '/path/to/results';
+%   analysis_simple_average(glm_path, opts);
 %
+% EXAMPLE (project out running regressors from M5):
+%   opts.model           = 'M5_Behavior';
+%   opts.nuisance_labels = {'wheel', 'wheel_hrf', 'interaction_hrf'};
+%   opts.resultPath      = '/path/to/results';
 %   analysis_simple_average(glm_path, opts);
 %
 % To view available model names:
@@ -95,6 +122,7 @@ if ~isfield(opts, 'after_stim_offset');     opts.after_stim_offset     = 20;   e
 if ~isfield(opts, 'min_stationary_trials'); opts.min_stationary_trials = 3;    end
 if ~isfield(opts, 'min_active_voxels');     opts.min_active_voxels     = 5;    end
 if ~isfield(opts, 'resultPath');            opts.resultPath            = pwd;   end
+if ~isfield(opts, 'nuisance_labels');       opts.nuisance_labels       = {};    end
 
 eta2_thresh_val       = opts.eta2_thresh_val;
 before_stim_onset     = opts.before_stim_onset;
@@ -102,6 +130,9 @@ after_stim_offset     = opts.after_stim_offset;
 min_stationary_trials = opts.min_stationary_trials;
 min_active_voxels     = opts.min_active_voxels;
 resultPath            = opts.resultPath;
+nuisance_labels       = opts.nuisance_labels;
+
+do_nuisance = ~isempty(nuisance_labels);
 
 % ---- build output filename ----
 eta_str   = sprintf('eta%03d', round(eta2_thresh_val * 100));
@@ -217,6 +248,49 @@ for isub = 1:nSubs
         after_frames  = round(after_stim_offset / TR);
         W             = before_frames + stim_frames + after_frames;
 
+        % -----------------------------------------------------------------
+        % Nuisance projection (optional)
+        %
+        % Project out the columns listed in nuisance_labels from the raw
+        % PDI signal before epoch-averaging.  The same model (opts.model)
+        % supplies both the Xmodel (already z-scored, [T x p]) and the
+        % betas ([p+1 x nx x ny], last row = intercept).
+        %
+        % Back-projection formula:
+        %   Y_clean = Y  -  Xnuis * Bnuis
+        % where
+        %   Xnuis  [T x n_nuis]   z-scored nuisance columns of Xmodel
+        %   Bnuis  [n_nuis x V]   corresponding betas (already in
+        %                         z-scored-predictor units, no rescaling needed)
+        % -----------------------------------------------------------------
+        if do_nuisance
+            all_labels = model_result.predictor_labels(1:end-1); % exclude 'intercept'
+            nuis_cols  = find(ismember(all_labels, nuisance_labels));
+
+            % Warn if any requested label was not found in this model
+            missing_labels = nuisance_labels(~ismember(nuisance_labels, all_labels));
+            if ~isempty(missing_labels)
+                fprintf('  WARNING: nuisance_labels not found in model "%s": %s\n', ...
+                    model_name, strjoin(missing_labels, ', '));
+                fprintf('  Available labels: %s\n', strjoin(all_labels, ', '));
+                fprintf('  Skipping nuisance projection for this session — using raw signal.\n');
+                PDI_data = PDI.PDI;
+            else
+                found_labels = all_labels(nuis_cols);
+                fprintf('  Nuisance projection: removing [%s]\n', strjoin(found_labels, ', '));
+
+                [nx, ny, ~] = size(PDI.PDI);
+                V       = nx * ny;
+                Y       = reshape(PDI.PDI, V, T)';             % [T x V]
+                Xnuis   = model_result.Xmodel(:, nuis_cols);   % [T x n_nuis]
+                Bnuis   = reshape(model_result.betas(nuis_cols, :, :), numel(nuis_cols), V); % [n_nuis x V]
+                Y_clean = Y - Xnuis * Bnuis;                   % [T x V]
+                PDI_data = reshape(Y_clean', nx, ny, T);        % [nx x ny x T]
+            end
+        else
+            PDI_data = PDI.PDI;   % raw signal — original behaviour
+        end
+
         nTrials = numel(onset_frames);
         nROI    = numel(active_region_ids);
 
@@ -253,7 +327,7 @@ for isub = 1:nSubs
                 roi_vox_mask(top_indices) = true;
             end
 
-            vox   = reshape(PDI.PDI, [], T);
+            vox   = reshape(PDI_data, [], T);
             y_roi = mean(vox(roi_vox_mask(:), :), 1)';
 
             epoch_mat = [];
@@ -312,7 +386,7 @@ t_window      = ((0:W-1) - before_frames) * TR_mean;
 
 save(out_fname, 'regional_avg', 'atlas', 'model_name', ...
     'chaoyi_hrfParams', 'chen2023_hrfParams', ...
-    'eta2_thresh_val', 'TR_mean', 'stim_dur_s', ...
+    'eta2_thresh_val', 'nuisance_labels', 'TR_mean', 'stim_dur_s', ...
     'before_stim_onset', 'after_stim_offset', ...
     'W', 't_window', '-v7.3');
 
