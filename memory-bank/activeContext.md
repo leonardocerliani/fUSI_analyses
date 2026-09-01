@@ -1,175 +1,159 @@
 # Active Context
 
 ## Current Focus
-Group FIR analysis complete (`ANALYSES/VISUAL/analysis_FIR_group.m`). The two visualization sections have been updated:
-- `plot_group_hrf`: bar chart of mean ± std HRF similarity per region (sorted descending), with console table. Workflow: run this section → pick region acronym from printed table.
-- `plot_group_hrf_region`: single-region deep-dive — individual traces + mean ± SE shaded band + canonical HRF overlaid. Set `target_acr` to the chosen acronym.
 
-Next session:
-1. Continue ridge regression / CV HRF analysis (`ANALYSES/VISUAL/analysis_HRF_CV_ridge.m`)
-2. Add `uigetdir` to `view_glm.m` so user can pick the results `.mat` file at launch (no hardcoded path)
+### `analysis_simple_average.m` — nuisance projection feature (session 2026-08-26)
 
-## What Was Built: FONDUTA Package
+**File:** `ANALYSES/VISUAL/HRF_analysis_revision/analysis_simple_average.m`
+**Emergency backup:** `analysis_simple_average_MRGNCY.m` (made by user before edits)
 
-A reusable MATLAB toolbox (`FONDUTA/`) extracted from the visual GLM analysis.
-Lives at `FONDUTA/+fonduta/` and is used by the orchestrator `ANALYSES/VISUAL/analysis_visual_FONDUTA.m`.
+#### What was added
 
-### Package Structure
-```
-FONDUTA/
-├── +fonduta/
-│   ├── +atlas/
-│   │   ├── allen_brain_atlas.mat     ← atlas data file
-│   │   ├── load_atlas.m              ← convenience loader: atlas = fonduta.atlas.load_atlas()
-│   │   ├── build_brain_masks.m       ← calls load_atlas() internally
-│   │   ├── atlas2individual.m        ← atlas → subject space
-│   │   └── individual2atlas.m        ← subject → atlas space
-│   ├── +glm/
-│   │   ├── engine.m                  ← dispatches to ols.m
-│   │   ├── ols.m                     ← OLS engine: accepts 3D PDI, returns remapped results
-│   │   ├── prepare_data_matrix.m     ← [nx x ny x T] → [T x V]
-│   │   ├── regress_out_nuisance.m
-│   │   ├── remap_results.m           ← [* x V] → [* x nx x ny]
-│   │   ├── remap_vec.m               ← [1 x V] → [nx x ny]
-│   │   └── zscore_safe.m
-│   ├── +io/
-│   │   ├── parsave.m
-│   │   └── +datapath/
-│   │       ├── load_session.m        ← loads prepPDI.mat, anatomic.mat, Transformation.mat
-│   │       └── save_results.m        ← saves GLMSes<isub>.mat
-│   ├── +signal/
-│   │   ├── hrf.m                     ← SPM double-gamma HRF kernel
-│   │   └── compute_pc1.m
-│   ├── +utils/
-│   │   └── extract_pc1_signals.m     ← globalPC1, nonBrainPC1, YhardGlobalPC1
-│   └── +viz/
-│       ├── view_design_matrix.m      ← standalone design matrix viewer
-│       └── view_glm.m                ← 3-column interactive viewer (brain + design matrix)
-├── utils_ext/
-│   └── BrunnerCodes/                 ← third-party registration tools (incl. interpolate3D.m)
-└── README.md
-```
+New optional field `opts.nuisance_labels` (default `{}`):
+- A cell array of predictor label strings drawn from `glm.models.(opts.model).predictor_labels`
+- Specifies which columns of the saved `Xmodel` (z-scored design matrix) to project OUT of the raw PDI signal before epoch-averaging
+- **Always uses the same model** for eta2 map, Xmodel, and betas — never cross-model mixing
 
-**DELETED from FONDUTA:** `+fonduta/+io/+datapath/get_paths.m`
-(was wrongly hardcoding session paths; Datapath.m lives in each analysis directory)
+#### Back-projection math (exact, no re-fitting)
 
-## fonduta.viz.view_glm — 3-column Interactive Viewer
-
-### Usage
 ```matlab
-fonduta.viz.view_glm('ANALYSES/VISUAL/glm_run-142136.mat')
+% Xnuis  [T × n_nuis]  — columns of model_result.Xmodel matching nuisance_labels
+% Bnuis  [n_nuis × V]  — corresponding rows of model_result.betas (z-scored-predictor units)
+Y_clean = Y - Xnuis * Bnuis;   % [T × V]
 ```
 
-### Layout (1700×740 px)
-| Column | Position | Contents |
-|--------|----------|---------|
-| Left | 0–18% | Model listbox, Predictor listbox, Stat dropdown, Threshold slider, region/value label |
-| Middle | 19–64% | Stat map on atlas histology, vertical colorbar (black ticks) |
-| Right | 65–98% | Design matrix panel (1/3 figure width) |
+Both `Xmodel` and `betas` are already stored in compatible units in the `.mat` file — no re-z-scoring needed.
 
-### Left column — stat selector
-- Dropdown (`popupmenu`) with options: `eta2 | R2 | betas | tstat | zstat`
-- Switching stat resets threshold slider to stat-specific default and updates range
-- `R2` disables the predictor listbox (model-level map)
-- Per-stat defaults: eta2→0.05, R2→0.05, betas→0 (no threshold), tstat/zstat→3.1
+#### Key design decisions
+- **Filename unchanged**: always `simple_avg_<model>_<eta_str>.mat` regardless of nuisance settings
+- **`nuisance_labels` always saved** in the `.mat` file (`{}` when no cleaning applied) — user can inspect after loading
+- **Validation**: missing labels trigger a per-session warning + fallback to raw signal (no crash)
+- **`do_nuisance` flag** computed once at the top; `PDI_data` variable holds either cleaned or raw signal; the ROI loop uses `PDI_data` throughout
 
-### Middle column — brain slice (updateDisplay)
-- `axis tight` + 5% margin expansion
-- Layers: atlas histology (gray) → stat overlay (80% opacity) → green borders (35%)
-- Colormaps: `hot` for unsigned stats (eta2, R2); `bwr` (blue→white→red, local function) for signed (betas, tstat, zstat)
-- Threshold: unsigned → `value < thresh = NaN`; signed → `|value| < thresh = NaN`; symmetric clim for signed
-- Colorbar: `cb.Color = [0 0 0]` (black tick labels readable on white bg)
-- **Click interaction (`onAxesClick`):**
-  - Draws thin green crosshair (horizontal + vertical lines); previous crosshair deleted before drawing
-  - Region name/acronym/ID shown in bottom-left text
-  - Stat value shown: `tstat = 28.432,  p = 2e-05`
-  - p-value: `2 * normcdf(-|val|)` (large-df normal approximation); `p = 0.023` if ≥ 0.001, `p = 2e-05` (engineering) if smaller
-  - `lastDisplayMap` cached in `updateDisplay` for value readout on click
+#### Usage example
+```matlab
+opts.model           = 'M5_Behavior';
+opts.nuisance_labels = {'wheel', 'wheel_hrf', 'interaction_hrf'};
+% stim_hrf is NOT listed → stays in signal
+% intercept is never listed → not a column of Xmodel
+opts.eta2_thresh_val = 0.03;
+opts.resultPath      = '/path/to/results';
+analysis_simple_average(glm_path, opts);
+```
 
-### Right column — design matrix (updateDesignMatrix)
-- `uipanel` with `uicontrol` text widget at top showing formula: `Y ~ pred1 + pred2 + ...`
-  - **Important:** formula uses `uicontrol` text (not `uipanel.Title`) to avoid TeX `~` interpretation
-  - `topMargin = 0.10` to leave room for formula widget above subplots
-- Stacked `axes` inside panel, one per predictor (`Xmodel` column), default MATLAB fonts
-- Updates when model changes (same callback as brain slice update)
+#### GLM result structure (reference)
+```
+glm.models.M5_Behavior
+    .betas            [5 × nx × ny]   rows: stim_hrf, wheel, wheel_hrf, interaction_hrf, intercept
+    .Xmodel           [T × 4]         z-scored design matrix (no intercept column)
+    .predictor_labels {'stim_hrf' 'wheel' 'wheel_hrf' 'interaction_hrf' 'intercept'}
+    .eta2             [4 × nx × ny]
+```
 
-### Key design notes
-- `axis tight` (NOT `axis image`) for brain slice — matches expected stretch from original viewer
-- `pDesign.Title` is static ("Design matrix"); formula is in `txtFormula.String`
-- Do NOT set custom FontSize on ylabel or axes ticks — use MATLAB defaults
-- Note: with T~6600, t-stats of 20–40 and z = Inf are numerically expected (large df → normal approx is accurate)
+---
 
-## Analysis Orchestrator Architecture
+### FIR simulation + conceptual clarification (session 2026-08-19)
+
+**`ANALYSES/VISUAL/FIR_ridge_simulation.m`** — interactive 6-cell simulation demonstrating HRF shape recovery.
+
+**Purpose:** Illustrate why the sustained-boxcar FIR design (used in `analysis_visual_FONDUTA_FIR.m`) cannot recover the HRF shape, and why the onset-delta + temporal shifts approach does.
+
+**Key conceptual distinction now documented in `analysis_FIR_README.md`:**
+
+| | FIR boxcar basis (`fn.generate_fir_basis`) | Onset-delta basis |
+|---|---|---|
+| Column k is | Sustained block shifted by k | Single spike at onset + k |
+| Columns overlap? | Yes — highly collinear | No — non-overlapping |
+| Beta k means | FIR filter coefficient | Average signal at lag k |
+| Good for | F-test / η² maps (joint test) | HRF shape recovery |
+| Bad for | HRF shape (individual betas) | F-test (too sparse for OLS) |
+
+**Column structure (ASCII, for reference):**
+```
+Boxcar:     1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 0 0 0 0 0   (15 s on, highly collinear)
+Boxcar+1s:  0 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 0 0 0 0
+
+Onset-delta:  1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0   (sparse, non-overlapping)
+Delta+1s:     0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0   (5 frames = 1 s at TR=0.2 s)
+```
+
+**Ground-truth reference:** `conv(boxcar_one_trial, hrf)` sampled at node times — NOT the bare HRF kernel. For a sustained 15 s stimulus, the expected signal is the integral of the HRF over the stimulus, not the impulse response.
+
+**Fixes applied to `FIR_ridge_simulation.m` (session 2026-08-19):**
+- `hrf_gt` corrected: now uses `conv(boxcar_one_trial, hrf_kernel)` sampled at node times
+- `smooth_win_s = 5` (s) parameter added — `movmean` applied to betas in Cells 4 and 5 before r and plot
+- `step` renamed to `node_step` everywhere to avoid MATLAB Control Toolbox `step()` collision
+- `stim_dur_s` line cleaned (had stray `close all` appended)
+
+**`analysis_FIR_README.md` additions (session 2026-08-19):**
+New section **"Why the FIR boxcar basis cannot recover the HRF shape — and what to use instead"** inserted after "Inspecting the estimated HRF shape":
+- ASCII column-structure illustration
+- Explanation of why collinearity destroys individual betas but not the omnibus F-test
+- Summary table
+- Points to `FIR_ridge_simulation.m` cells 3–5 for live demonstration
+- Recommended workflow: boxcar FIR for η²/F maps; onset-delta + ridge for HRF shape
+
+**Recommended workflow (now clearly documented):**
+- **Voxelwise maps** (η², F-stat): `analysis_visual_FONDUTA_FIR.m` with `fn.generate_fir_basis` — boxcar F-test detects *which* regions respond
+- **HRF shape recovery**: `analysis_ridge_loo_ROI.m` — onset-delta + ridge LOO-CV on ROI-averaged signals
+
+---
+
+## File Structure (current)
 
 ```
 ANALYSES/VISUAL/
-├── analysis_visual_FONDUTA.m    ← Main orchestrator
-├── analysis_HRF_CV_ridge.m      ← Ridge regression / HRF cross-validation (IN PROGRESS)
-├── Datapath.m                   ← Session path resolver (experiment-specific, stays here)
-└── +fn/
-    ├── build_stimulus_design.m
-    ├── build_behavior_regressors.m
-    └── detect_running_trials.m
+├── analysis_visual_FONDUTA_HRF.m       ← Standard GLM, 11 models (M1–M8)
+├── analysis_visual_FONDUTA_FIR.m       ← Voxelwise FIR GLM (F1–F3), boxcar basis, F-tests
+├── analysis_ridge_loo_ROI.m            ← ROI-level HRF shape recovery (onset-delta + ridge LOO-CV)
+├── analysis_ridge_loo_ROI_view_results.m
+├── FIR_ridge_simulation.m              ← Simulation: boxcar vs onset-delta, OLS vs ridge
+├── analysis_FIR_README.md              ← FIR tutorial (Steps 0–7 + HRF shape section)
+├── HRF_Chen2023_Lambert2020.md
+├── show_hrf_kernel.m
+├── sketch.m
+├── +fn/
+│   ├── build_visual_predictors.m
+│   ├── build_wheel_signal.m
+│   ├── detect_running_trials.m
+│   └── generate_fir_basis.m
+└── HRF_analysis_revision/              ← active development subdirectory
+    ├── analysis_simple_average.m           ← Event-related averaging (+ nuisance_labels feature)
+    ├── analysis_simple_average_MRGNCY.m    ← Emergency backup (pre-nuisance edits)
+    ├── analysis_simple_average_parallel.m
+    ├── analysis_simple_average_view_results.m
+    ├── view_simple_average_results.m
+    ├── analysis_simple_average_generate_allen_map.m
+    ├── analysis_simple_average_README.md
+    ├── calculate_mean_eta2_maps.m
+    ├── eta2_mean_maps/
+    ├── results_simple_average/
+    └── results_ridge_loo/
 ```
 
-### Key Design Principle: Datapath Separation
-- `Datapath(condition)` is called directly in the orchestrator — NOT via FONDUTA
-- FONDUTA has zero knowledge of session paths
-- Each analysis directory owns its own `Datapath.m`
+---
 
-### hrf() anonymous function
-```matlab
-TR         = mean(diff(PDI.time));
-hrf_kernel = fonduta.signal.hrf(TR, hrfParams);
-hrf        = @(ev) filter(hrf_kernel, 1, ev(:));
+## FONDUTA Package — Current State
+
+```
+FONDUTA/+fonduta/
+├── +atlas/     load_atlas, atlas2individual, individual2atlas, build_slice_masks, build_brain_masks
+├── +glm/       engine (F-contrasts ✓), ols (skip_zscore ✓), remap_results (fcontrasts ✓), ...
+├── +io/        parsave, +datapath/
+├── +signal/    hrf, compute_pc1
+├── +utils/     extract_pc1_signals, tree_struct
+└── +viz/       view_glm (F-injection ✓, CLim NaN-guard ✓), view_design_matrix, view_image, view_registration
 ```
 
-### fonduta.glm.ols() signature
+### fonduta.glm.ols() — current signature
 ```matlab
 result = fonduta.glm.ols(model_name, PDI3D, bmask, X, predictor_labels)
+result = fonduta.glm.ols(model_name, PDI3D, bmask, X, predictor_labels, contrasts)
+result = fonduta.glm.ols(model_name, PDI3D, bmask, X, predictor_labels, contrasts, skip_zscore)
 ```
-- Accepts 3D `PDI.PDI [nx x ny x T]` directly
-- Z-scores X internally (callers pass raw signals)
-- Returns:
-  - `.betas [p+1 x nx x ny]` — parameter estimates (last = intercept)
-  - `.eta2  [p x nx x ny]`   — partial η² per predictor
-  - `.tstat [p x nx x ny]`   — t-statistic per predictor; `SE_j = sqrt(MSE * (X'X)^{-1}_{jj})`
-  - `.zstat [p x nx x ny]`   — z-score via `norminv(tcdf(t, df))`; numerically Inf for very large df (use t instead)
-  - `.R2    [nx x ny]`        — global model R²
+- `contrasts`: struct array with `.name` and `.C` fields; each C is `[N_rows × (p+1)]`
+- `skip_zscore`: logical (default false); pass `true` for FIR models
 
-## Results File Structure
-```matlab
-% GLMSes33.mat → res = tmp.data
-res.models.M8_SteadyVisual.betas          % [p+1 x nx x ny]
-res.models.M8_SteadyVisual.eta2           % [p x nx x ny]
-res.models.M8_SteadyVisual.predictor_labels  % cell array
-res.anatPath                               % path to anatomic.mat
-res.Transf                                 % Transf.M = subject→atlas affine
-res.bmask                                  % [nx x ny] brain mask
-```
-
-## Models Implemented (11 total)
-| Name | Predictors |
-|------|-----------|
-| M1_StimOnly | `hrf(stim_all)` |
-| M2_HardGlobalPC1 | `hrf(stim_all)` on `YhardGlobalPC1` |
-| M3_SoftGlobalPC1 | `[hrf(stim_all), globalPC1]` |
-| M4_SoftNonBrainPC1 | `[hrf(stim_all), nonBrainPC1]` |
-| M5_Behavior | `[hrf(stim_all), wheel, hrf(wheel), hrf(stim_all.*wheel)]` |
-| M6a_BehSoftGlobalPC1 | M5 + `globalPC1` |
-| M6b_BehSoftNonBrainPC1 | M5 + `nonBrainPC1` |
-| M6c_BehSoftBothPC1 | M5 + `globalPC1` + `nonBrainPC1` |
-| M7a_RunSmooth | `[wheelSmooth, hrf(stim_all), hrf(wheel), hrf(stim_all.*wheel)]` |
-| M7b_RunConv | `[hrf(wheel), hrf(stim_all), wheelSmooth, hrf(stim_all.*wheel)]` |
-| M8_SteadyVisual | `hrf(stim_stationary)` on steady timepoints + correlation maps |
-
-## Repository
-- GitHub: `leonardocerliani/fUSI_analyses`
-- `.gitignore` excludes: `chaoyi_data08/`, `memory-bank/tasks/`, `*.asv`, `*.m~`, `*.mlx~`, `.DS_Store`, `Thumbs.db`
-- `allen_brain_atlas.mat` (70 MB) committed directly (under GitHub's 100 MB limit)
-
-## Next Steps (next session)
-1. Add `uigetdir` to `view_glm.m` — let user pick the results `.mat` file at launch (no hardcoded path)
-2. Continue ridge regression / CV HRF analysis in `ANALYSES/VISUAL/analysis_HRF_CV_ridge.m`
-3. Eventually build `ANALYSES/SHOCK/` using the same FONDUTA architecture
-4. Future: split FONDUTA into its own git repo; reference via `FONDUTA_PATH`
+### Key Design Principle: Datapath Separation
+- `Datapath(condition)` called directly in orchestrators — FONDUTA has zero knowledge of session paths
+- Each analysis directory owns its own `Datapath.m`

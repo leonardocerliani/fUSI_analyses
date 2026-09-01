@@ -20,6 +20,34 @@ function view_glm(resultFile)
 tmp = load(resultFile);
 res = tmp.data;
 
+%% ---- Inject F-contrast maps as synthetic predictors (FIR models only) ----
+% For any model that has a .fcontrasts field (produced by the FIR pipeline),
+% each contrast's eta2_p and Fmap are appended as extra rows to eta2/tstat
+% so they appear in the Predictor listbox with a '[F] <name>' label.
+% HRF models have no .fcontrasts field → this block is a no-op for them.
+mnames_tmp = fieldnames(res.models);
+for mi_tmp = 1:numel(mnames_tmp)
+    mdata_tmp = res.models.(mnames_tmp{mi_tmp});
+    if ~isfield(mdata_tmp, 'fcontrasts') || isempty(fieldnames(mdata_tmp.fcontrasts))
+        continue
+    end
+    cnames_tmp = fieldnames(mdata_tmp.fcontrasts);
+    for ci_tmp = 1:numel(cnames_tmp)
+        cn_tmp  = cnames_tmp{ci_tmp};
+        src_tmp = mdata_tmp.fcontrasts.(cn_tmp);
+        % eta2_p  [nx x ny]  → unsqueeze to [1 x nx x ny] and append to eta2
+        mdata_tmp.eta2  = cat(1, mdata_tmp.eta2,  reshape(src_tmp.eta2_p, [1, size(src_tmp.eta2_p)]));
+        % Fmap    [nx x ny]  → unsqueeze to [1 x nx x ny] and append to tstat
+        mdata_tmp.tstat = cat(1, mdata_tmp.tstat, reshape(src_tmp.Fmap,   [1, size(src_tmp.Fmap)]));
+        % Insert label before 'intercept' (which is always the last entry)
+        mdata_tmp.predictor_labels = [mdata_tmp.predictor_labels(1:end-1), ...
+                                      {['[F] ' cn_tmp]}, ...
+                                      mdata_tmp.predictor_labels(end)];
+    end
+    res.models.(mnames_tmp{mi_tmp}) = mdata_tmp;
+end
+clear mnames_tmp mi_tmp mdata_tmp cnames_tmp ci_tmp cn_tmp src_tmp
+
 FONDUTA_ROOT = fileparts(fileparts(fileparts(mfilename('fullpath'))));
 addpath(genpath(FONDUTA_ROOT));
 
@@ -283,12 +311,12 @@ onModelChange(1);
         if cfg.signed
             cmap = bwr(256);
             clim_abs = max(abs(displayMap(:)), [], 'omitnan');
-            if isempty(clim_abs) || clim_abs == 0; clim_abs = 1; end
+            if isempty(clim_abs) || clim_abs == 0 || isnan(clim_abs); clim_abs = 1; end
             clims = [-clim_abs, clim_abs];
         else
             cmap  = hot(256);
             clims = [0, max(displayMap(:), [], 'omitnan')];
-            if isempty(clims(2)) || clims(2) == 0; clims(2) = 1; end
+            if isempty(clims(2)) || clims(2) == 0 || isnan(clims(2)); clims(2) = 1; end
         end
 
         %% Render

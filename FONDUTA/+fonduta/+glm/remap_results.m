@@ -11,6 +11,9 @@ function remapped = remap_results(glm_est, bmask)
 %                .tstat  [p   x V]
 %                .zstat  [p   x V]
 %                .R2     [1   x V]
+%                .fcontrasts (optional) struct with sub-fields per contrast:
+%                    .<name>.Fmap    [1 x V]
+%                    .<name>.eta2_p  [1 x V]
 %   bmask    - [nx x ny] binary brain mask (same one used in prepare_data_matrix)
 %
 % Output:
@@ -23,6 +26,11 @@ function remapped = remap_results(glm_est, bmask)
 %                .Xmodel [T x p]           z-scored design matrix (no intercept), copied from glm_est
 %                .predictor_labels         copied from glm_est
 %                .model_name               copied from glm_est
+%                .fcontrasts (optional)  struct matching glm_est.fcontrasts but with
+%                    .<name>.Fmap    [nx x ny]  remapped F-statistic map
+%                    .<name>.eta2_p  [nx x ny]  remapped partial eta² map
+%                    .<name>.df_effect  scalar  copied from glm_est
+%                    .<name>.df_error   scalar  copied from glm_est
 %
 % See also: fonduta.glm.ols, fonduta.glm.engine, fonduta.glm.remap_vec
 
@@ -35,9 +43,24 @@ remapped.eta2             = remap_array(glm_est.eta2,   maskIdx, nx, ny);
 remapped.tstat            = remap_array(glm_est.tstat,  maskIdx, nx, ny);
 remapped.zstat            = remap_array(glm_est.zstat,  maskIdx, nx, ny);
 remapped.R2               = squeeze(remap_array(glm_est.R2, maskIdx, nx, ny));
-remapped.Xmodel           = glm_est.Xmodel;   % [T x p] z-scored design matrix, passed through as-is
+remapped.Xmodel           = glm_est.Xmodel;   % [T x p] design matrix, passed through as-is
 remapped.predictor_labels = glm_est.predictor_labels;
 remapped.model_name       = glm_est.model_name;
+
+%% Remap optional fcontrasts (present only for FIR models)
+if isfield(glm_est, 'fcontrasts') && ~isempty(glm_est.fcontrasts)
+    cnames = fieldnames(glm_est.fcontrasts);
+    remapped.fcontrasts = struct();
+    for ci = 1:numel(cnames)
+        cn  = cnames{ci};
+        src = glm_est.fcontrasts.(cn);
+
+        remapped.fcontrasts.(cn).Fmap      = squeeze(remap_array(src.Fmap,   maskIdx, nx, ny));
+        remapped.fcontrasts.(cn).eta2_p    = squeeze(remap_array(src.eta2_p, maskIdx, nx, ny));
+        remapped.fcontrasts.(cn).df_effect = src.df_effect;   % scalar, copy as-is
+        remapped.fcontrasts.(cn).df_error  = src.df_error;    % scalar, copy as-is
+    end
+end
 
 end
 
