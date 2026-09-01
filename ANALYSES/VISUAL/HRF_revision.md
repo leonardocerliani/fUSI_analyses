@@ -17,6 +17,30 @@ The considered models are:
 - **M8_StationaryStims**
 - **M5_Behavior** : regressing wheel speed and interaction with stimuli
 
+
+## TL.DR
+- eta2 maps calculated with FIR (time-shifted delta functions) glm are very similar to those obtained with cHRF (canonical HRF)
+
+| Model | Spatial corr average eta2 | Spatial corr eta2 across sessions  |
+|---|---:|---:|
+| **M1_AllStims** | $r = 0.96$ | $r_{median} = 0.98, IQR = 0.02$ |
+| **M5_Behavior** | $r = 0.84$ | $r_{median} = 0.82, IQR = 0.24$ |
+
+- the time course of the stimulus boxcar convolved with the cHRF was highly correlated with the peristimulus time course, for instance in the lateral geniculate complex ($r_{mean}0.852\pm0.07$) and in the retrosplenial region RSPv ($r_{mean}0.784\pm0.13$).
+
+- denoising using the cHRF (M5) resulted in an _increase_ of the effect of the visual stimuli in cortical primary visual regions, as well as in a _decrease_ of the effect of the same stimuli in cortical regions not primarily associated with visual activity.   
+
+<div style="display: flex; gap: 20px; align-items: center;">
+  <img src="./HRF_revision_IMAGES/tc_corr_simple_average_M5-M1.png"
+       style="width: 50%; height: auto;">
+  <img src="./HRF_revision_IMAGES/tc_corr_simple_average_M1-M5.png"
+       style="width: 50%; height: auto;">
+</div>
+
+_**Left**: Primary visual regions where the correlation of eHRF ~ cHRF is higher in M5 (all stimuli with motion regression) with respect to M1 (all stimuli without nuisance regression). **Right**: Regions where the correlation of eHRF ~ cHRF is higher when nuisance is not regressed (M1) than when it is regressed out during glm._
+
+<br>
+
 ## Similarity between HRF and FIR eta2 maps
 We transformed the eta2 maps for the predictor of interest from the subject space to the allen space. Since not all subject cover the save voxels, we then calculated the mean eta2 image according to how many subjects are present in any voxel.
 
@@ -88,11 +112,15 @@ However, denoising using the cHRF was evidently succesful in cortical regions cl
 
 _**Left**: Primary visual regions where the correlation of eHRF ~ cHRF is higher in M5 (all stimuli with motion regression) with respect to M1 (all stimuli without nuisance regression). **Right**: Hippocampal regions where the correlation of eHRF ~ cHRF is higher when nuisance is not regressed (M1) than when it is regressed out during glm._
 
+<br>
+
 ![](./HRF_revision_IMAGES/tc_corr_simple_average_M5-M1_VIS.png)
 
 _**Left**: M1 including all stimuli without nuisance regression; **Right**: M5 including the nuisance parameters_
 
 At the same time, such denoising drastically decreased the correlations for regions which are not directly associated with the visual stimuli.
+
+<br>
 
 ![](./HRF_revision_IMAGES/tc_corr_simple_average_M5-M1_HIPPO.png)
 
@@ -104,3 +132,17 @@ As a methodological note: to isolate the signal of interest from unwanted physio
 $$Y_{\text{clean}} = Y - X_{\text{nuisance}} * \hat{\beta}_{\text{nuisance}}$$
 
 Following nuisance removal, trial-level epochs were extracted using a fixed time window centered around each stimulus onset. These individual peristimulus time courses were then baseline-corrected relative to the pre-stimulus interval and averaged across trials to yield the mean regional signal response ($\Delta P / P_0$).
+
+
+## Similarity of cHRF and peristimulus time course with eHRF recovered by loo-cv ridge regression
+
+
+
+```bash
+nohup matlab -batch "glm_results_path = '/data06/fUSIMethodsPaper/Data_analysis/LC/VisualTest'; base_opts = struct('resultPath', pwd, 'eta2_thresh_val', 0.03, 'min_active_voxels', 5, 'lambda_grid', logspace(-1, 4, 6)); opts = base_opts; opts.nuisance_labels = {}; analysis_ridge_loo_ROI(glm_results_path, 'M1_StimOnly', opts);" > run_M1.log 2>&1 &
+
+nohup matlab -batch "glm_results_path = '/data06/fUSIMethodsPaper/Data_analysis/LC/VisualTest'; base_opts = struct('resultPath', pwd, 'eta2_thresh_val', 0.03, 'min_active_voxels', 5, 'lambda_grid', logspace(-1, 4, 6)); opts = base_opts; opts.nuisance_labels = {}; analysis_ridge_loo_ROI(glm_results_path, 'M8_SteadyVisual', opts);" > run_M8.log 2>&1 &
+
+nohup matlab -batch "glm_results_path = '/data06/fUSIMethodsPaper/Data_analysis/LC/VisualTest'; base_opts = struct('resultPath', pwd, 'eta2_thresh_val', 0.03, 'min_active_voxels', 5, 'lambda_grid', logspace(-1, 4, 6)); opts = base_opts; opts.nuisance_labels = {'wheel', 'wheel_hrf', 'interaction_hrf'}; analysis_ridge_loo_ROI(glm_results_path, 'M5_Behavior', opts);" > run_M5.log 2>&1 &
+```
+

@@ -208,8 +208,6 @@ compare_hrf_fir_eta2(glm_results_path, run_num, model, normalize);
 % in regions with large eta2 wrt regions which are not "activated" by the
 % stimulus.
 
-hrf_analysis_path = fullfile(pwd, 'HRF_analysis_revision', 'results_simple_average');
-opts.resultPath = hrf_analysis_path;
 
 % Extract and save the average peristimulus time courses.
 % - For regions with at least N min_active_voxes at the given eta2 threshold,
@@ -217,23 +215,38 @@ opts.resultPath = hrf_analysis_path;
 % - For all other regions, the voxels with the top 5% eta2 values are selected
 %   for the average time course.
 
-opts.eta2_thresh_val = 0.03;
-opts.min_active_voxels = 5;
+% Set the target output directory
+hrf_analysis_path = fullfile(pwd, 'HRF_analysis_revision', 'results_simple_average');
 
-% Choose one model among M1, M5, M8
-% Note that we are _not_ modelling here. M8 is to isolate the peristimulus
-% time course in stationary trials. M1 considers all trials.
-%
-% For models with nuisance parameters (like M5), choose also the labels of
-% the nuisance predictors.
+% Base options shared across all models
+base_opts = struct();
+base_opts.resultPath        = hrf_analysis_path;
+base_opts.eta2_thresh_val   = 0.03;
+base_opts.min_active_voxels = 5;
 
-% opts.model = 'M8_SteadyVisual';
-% opts.model = 'M1_StimOnly';
+% -------------------------------------------------------------------------
+% 1. Model M1: All trials (Raw signal)
+% -------------------------------------------------------------------------
+opts = base_opts;
+opts.model           = 'M1_StimOnly';
+opts.nuisance_labels = {};
+analysis_simple_average(glm_results_path, opts);
 
+% -------------------------------------------------------------------------
+% 2. Model M8: Stationary trials only (Raw signal)
+% -------------------------------------------------------------------------
+opts = base_opts;
+opts.model           = 'M8_SteadyVisual';
+opts.nuisance_labels = {};
+analysis_simple_average(glm_results_path, opts);
+
+% -------------------------------------------------------------------------
+% 3. Model M5: All trials with nuisance regression (Running regressors removed)
+% -------------------------------------------------------------------------
+opts = base_opts;
 opts.model           = 'M5_Behavior';
 opts.nuisance_labels = {'wheel', 'wheel_hrf', 'interaction_hrf'};
-
-analysis_simple_average(glm_results_path,opts);
+analysis_simple_average(glm_results_path, opts);
 
 % tic
 % analysis_simple_average_parallel(glm_results_path,opts);
@@ -250,33 +263,37 @@ view_simple_average_results()
 
 % % 1. First print the table of the correlation for all (suprathreshold) regions
 % % NB: You might need to lower the opts.sim_thresh.
-% opts.sim_thresh       = 0.85;   % only show regions where corr with canonical hrf is >= than this
-% opts.n_subject_thresh = 10;     % only show regions present in >= this many subjects
-% opts.smooth_win_s     = 5;     % moving-average smoothing window in seconds (0 = off)
+% clear opts;
+% opts.model            = 'M5_Behavior';
+% opts.eta2_thresh_val  = 0.03;
+% opts.sim_thresh       = 0.85;   % show regions where corr with canonical hrf is >= than this
+% opts.n_subject_thresh = 10;     % show regions present in >= this many subjects
+% opts.smooth_win_s     = 5;      % moving-average smoothing window in seconds (0 = off)
 % 
 % analysis_simple_average_view_results.view_table(opts)
 % % -------------------------------------------------------------------------
 % 
-% 
-% 
 % % 2. Then choose one region from the table to see the plot.
 % %    Optionally, (re)set the running window average
-% opts.target_acr   = 'LGv';    % Allen acronym — pick from Part 2 table
-% opts.smooth_win_s = 5;         % seconds (0 = off)
+% clear opts;
+% opts.model            = 'M5_Behavior';
+% opts.eta2_thresh_val  = 0.03;
+% opts.target_acr       = 'LGv';  % Allen acronym — pick from Part 1 table
+% opts.smooth_win_s     = 5;      % seconds (0 = off)
 % 
 % analysis_simple_average_view_results.plot_similarity(opts)
 % % -------------------------------------------------------------------------
 % 
-% 
 % % 3. Generate a map to inspect with fonduta.viz.view_atlas
-% opts.sim_thresh       = 0;
+% clear opts;
+% opts.model            = 'M5_Behavior';
+% opts.eta2_thresh_val  = 0.03;
+% opts.sim_thresh       = 0;      % 0 = include all valid regions in 3D volume
+% opts.n_subject_thresh = 1;
 % opts.smooth_win_s     = 5;
-% opts.statistic        = 'mean';
+% opts.statistic        = 'mean'; % 'mean' or 'median'
 % 
 % analysis_simple_average_generate_allen_map(opts);
-% 
-% % view the map
-% fonduta.viz.view_atlas
 
 
 % Additionally, we can see in which regions the effect of denoising using
@@ -294,6 +311,105 @@ M1_minus_M5 = M1.correlation_map - M5.correlation_map;
 save(fullfile(res_dir,'M1_minus_M5.mat'),'M1_minus_M5');
 
 % fonduta.viz.view_atlas
+
+
+%% Ridge regression (loo-cv) to reconstruct the empirical HRF (eHRF)
+
+% Set the target output directory
+hrf_analysis_path = fullfile(pwd, 'HRF_analysis_revision', 'results_ridge_loo');
+
+% Base options shared across all models
+base_opts = struct();
+base_opts.resultPath        = hrf_analysis_path;
+base_opts.eta2_thresh_val   = 0.03;
+base_opts.min_active_voxels = 5;
+base_opts.lambda_grid = logspace(-1, 4, 6);
+base_opts.before_stim_onset = 5;  % Optional: explicitly set pre-onset window (seconds)
+
+% -------------------------------------------------------------------------
+% 1. Model M1: All trials (Raw signal)
+% -------------------------------------------------------------------------
+opts = base_opts;
+opts.nuisance_labels = {};
+analysis_ridge_loo_ROI(glm_results_path, 'M1_StimOnly', opts);
+
+% -------------------------------------------------------------------------
+% 2. Model M8: Stationary trials only (Raw signal)
+% -------------------------------------------------------------------------
+opts = base_opts;
+opts.nuisance_labels = {};
+analysis_ridge_loo_ROI(glm_results_path, 'M8_SteadyVisual', opts);
+
+% -------------------------------------------------------------------------
+% 3. Model M5: All trials with nuisance regression (Running regressors removed)
+% -------------------------------------------------------------------------
+opts = base_opts;
+opts.nuisance_labels = {'wheel', 'wheel_hrf', 'interaction_hrf'};
+analysis_ridge_loo_ROI(glm_results_path, 'M5_Behavior', opts);
+
+
+view_ridge_results()
+
+
+% If you want to generate the single components, use the code below
+
+% % 1. First print the table of the correlation for all (suprathreshold) regions
+% % NB: You might need to lower the opts.sim_thresh.
+% clear opts;
+% opts.model                    = 'M5_Behavior';
+% opts.eta2_thresh_val          = 0.03;
+% opts.time_window_after_offset = 12;
+% opts.nuisance_labels         = {};      % e.g., {'motion', 'is_blink'} if applicable
+% opts.baseline_correct         = true;    % Zero-anchor pre-stimulus baseline (t < 0s)
+% opts.sim_thresh               = 0.85;   % only show regions where corr with canonical hrf is >= than this
+% opts.n_subject_thresh         = 10;     % only show regions present in >= this many subjects
+% opts.smooth_win_s             = 5;      % moving-average smoothing window in seconds (0 = off)
+% 
+% analysis_ridge_view_results.view_table(opts)
+% % -------------------------------------------------------------------------
+% 
+% 
+% % 2. Then choose one region from the table to see the plot.
+% %    Optionally, (re)set the running window average
+% clear opts;
+% opts.model                    = 'M5_Behavior';
+% opts.eta2_thresh_val          = 0.03;
+% opts.time_window_after_offset = 12;
+% opts.nuisance_labels         = {};
+% opts.baseline_correct         = true;
+% opts.target_acr               = 'LGv';  % Allen acronym — pick from Part 1 table
+% opts.smooth_win_s             = 5;      % seconds (0 = off)
+% 
+% analysis_ridge_view_results.plot_similarity(opts)
+% % -------------------------------------------------------------------------
+% 
+% 
+% % 3. Generate a map to inspect with fonduta.viz.view_atlas
+% clear opts;
+% opts.model                    = 'M5_Behavior';
+% opts.eta2_thresh_val          = 0.03;
+% opts.time_window_after_offset = 12;
+% opts.nuisance_labels         = {};
+% opts.baseline_correct         = true;    % Zero-anchor pre-stimulus baseline (t < 0s)
+% opts.sim_thresh               = 0;      % 0 = include all valid regions in 3D volume
+% opts.n_subject_thresh         = 1;      % minimum number of subjects required
+% opts.smooth_win_s             = 5;      % seconds (0 = off)
+% opts.statistic                = 'mean'; % 'mean' or 'median'
+% 
+% analysis_ridge_generate_allen_map(opts);
+% 
+% % view the map
+% fonduta.viz.view_atlas
+
+
+%% Compare eHRF with cHRF in their correlation with peristimulus signal
+model_name = 'M5_Behavior';
+
+tic
+prepare_eHRF_cHRF_data(model_name, atlas)
+toc
+
+view_eHRF_cHRF_corr_peristimulus(model_name, atlas)
 
 
 
