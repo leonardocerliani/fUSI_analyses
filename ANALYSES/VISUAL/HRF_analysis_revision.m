@@ -403,11 +403,10 @@ view_ridge_results()
 
 
 %% Compare eHRF with cHRF in their correlation with peristimulus signal
+model_name = 'M1_StimOnly';
+
 model_name = 'M5_Behavior';
 
-tic
-prepare_eHRF_cHRF_data(model_name, atlas)
-toc
 
 view_eHRF_cHRF_corr_peristimulus(model_name, atlas)
 

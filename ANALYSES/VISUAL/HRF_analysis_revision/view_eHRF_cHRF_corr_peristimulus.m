@@ -56,22 +56,25 @@ function view_eHRF_cHRF_corr_peristimulus(model_name, atlas)
         'Units', 'normalized', 'Position', [0.08, 0.91, 0.05, 0.03], ...
         'BackgroundColor', 'w', 'FontSize', 10, 'HorizontalAlignment', 'right');
     hMetricGroup = uibuttongroup(fig, 'Units', 'normalized', ...
-        'Position', [0.14, 0.90, 0.22, 0.04], 'BackgroundColor', 'w', ...
+        'Position', [0.14, 0.90, 0.22, 0.04], 'BackgroundColor', 'w', ... % Expanded width to 0.30
         'SelectionChangedFcn', @(~,~) updateMapAndDisplay());
+
     uicontrol(hMetricGroup, 'Style', 'radiobutton', 'String', 'Z score', ...
-        'Units', 'normalized', 'Position', [0.05, 0.1, 0.45, 0.8], 'BackgroundColor', 'w', 'FontSize', 9, 'Value', 1);
+        'Units', 'normalized', 'Position', [0.02, 0.1, 0.30, 0.8], 'BackgroundColor', 'w', 'FontSize', 9, 'Value', 1);
     uicontrol(hMetricGroup, 'Style', 'radiobutton', 'String', 'Simple difference', ...
-        'Units', 'normalized', 'Position', [0.52, 0.1, 0.45, 0.8], 'BackgroundColor', 'w', 'FontSize', 9);
+        'Units', 'normalized', 'Position', [0.34, 0.1, 0.33, 0.8], 'BackgroundColor', 'w', 'FontSize', 9);
+    uicontrol(hMetricGroup, 'Style', 'radiobutton', 'String', '1 - p value', ...
+        'Units', 'normalized', 'Position', [0.68, 0.1, 0.30, 0.8], 'BackgroundColor', 'w', 'FontSize', 9);
 
     uicontrol(fig, 'Style', 'text', 'String', 'Direction:', ...
-        'Units', 'normalized', 'Position', [0.38, 0.91, 0.06, 0.03], ...
+        'Units', 'normalized', 'Position', [0.37, 0.91, 0.06, 0.03], ...
         'BackgroundColor', 'w', 'FontSize', 10, 'HorizontalAlignment', 'right');
     hDirGroup = uibuttongroup(fig, 'Units', 'normalized', ...
-        'Position', [0.45, 0.90, 0.25, 0.04], 'BackgroundColor', 'w', ...
+        'Position', [0.44, 0.90, 0.18, 0.04], 'BackgroundColor', 'w', ...
         'SelectionChangedFcn', @(~,~) updateMapAndDisplay());
     uicontrol(hDirGroup, 'Style', 'radiobutton', 'String', 'eHRF > cHRF', ...
         'Units', 'normalized', 'Position', [0.05, 0.1, 0.45, 0.8], 'BackgroundColor', 'w', 'FontSize', 9, 'Value', 1);
-    uicontrol(hDirGroup, 'Style', 'radiobutton', 'String', 'eHRF < cHRF', ...
+    uicontrol(hDirGroup, 'Style', 'radiobutton', 'String', 'cHRF > eHRF', ...
         'Units', 'normalized', 'Position', [0.52, 0.1, 0.45, 0.8], 'BackgroundColor', 'w', 'FontSize', 9);
 
     ax = axes('Parent', fig, 'Position', [0.08, 0.18, 0.48, 0.70]);
@@ -176,6 +179,18 @@ function view_eHRF_cHRF_corr_peristimulus(model_name, atlas)
 
     function updateMapAndDisplay()
         if isempty(eHRFData) || isempty(cHRFData), return; end
+        
+        selMetric = get(hMetricGroup.SelectedObject, 'String');
+        
+        % Reset bounds automatically to full range [0 1] to see all values clear
+        if strcmp(selMetric, '1 - p value')
+            hMinBox.String = '0.95';
+            hMaxBox.String = '1.00';
+        else
+            hMinBox.String = 'NaN'; 
+            hMaxBox.String = 'NaN';
+        end
+        
         corrMap = generateComparisonMap();
         btnClearOverlays();
         addOverlay(corrMap);
@@ -185,56 +200,99 @@ function view_eHRF_cHRF_corr_peristimulus(model_name, atlas)
     function corrMap = generateComparisonMap()
         corrMap = nan(size(atlas.Regions));
         selMetric = get(hMetricGroup.SelectedObject, 'String');
-        selDir = get(hDirGroup.SelectedObject, 'String');
+        selDir    = get(hDirGroup.SelectedObject, 'String');
         
         common_regions = intersect(fieldnames(eHRFData.regional_avg), fieldnames(cHRFData.regional_avg));
-        
+
+        % --- Build canonical HRF template once (same for all regions/subjects) ---
+        % Signal is always tc_c (simple avg peristimulus); templates are:
+        %   eHRF: subject-specific tc_e from ridge LOO
+        %   cHRF: conv(boxcar, hrf_kernel) at cHRFData TR, trimmed to W_c
+        TR_map        = cHRFData.TR_mean;
+        stim_fr_map   = round(cHRFData.stim_dur_s        / TR_map);
+        before_fr_map = round(cHRFData.before_stim_onset / TR_map);
+        after_fr_map  = round(cHRFData.after_stim_offset / TR_map);
+        W_map         = before_fr_map + stim_fr_map + after_fr_map;
+        boxcar_map    = [zeros(before_fr_map,1); ones(stim_fr_map,1); zeros(after_fr_map,1)];
+        hrf_ker_map   = fonduta.signal.hrf(TR_map, cHRFData.chaoyi_hrfParams);
+        chrf_template = conv(boxcar_map, hrf_ker_map);
+        chrf_template = chrf_template(1:W_map);
+        chrf_template = chrf_template(:);
+        t_chrf        = ((0:W_map-1)' - before_fr_map) * TR_map;
+
         for fi = 1:numel(common_regions)
             regName = common_regions{fi};
-            tc_e = eHRFData.regional_avg.(regName).tc;
-            tc_c = cHRFData.regional_avg.(regName).tc;
-            
+            tc_e = eHRFData.regional_avg.(regName).tc;   % [nTime_e x nSub_e]  eHRF shape per subject
+            tc_c = cHRFData.regional_avg.(regName).tc;   % [nTime_c x nSub_c]  peristimulus signal per subject
+
             nSub = min(size(tc_e, 2), size(tc_c, 2));
             if nSub < 2, continue; end
-            
+
             tc_e = tc_e(:, 1:nSub);
             tc_c = tc_c(:, 1:nSub);
 
-            nTime_e = size(tc_e, 1);
+            % Build time axis for tc_c (the signal)
             nTime_c = size(tc_c, 1);
-            if nTime_e ~= nTime_c
-                tc_c_interp = zeros(nTime_e, nSub);
-                t_orig = linspace(0, 1, nTime_c);
-                t_targ = linspace(0, 1, nTime_e);
-                for s = 1:nSub
-                    tc_c_interp(:, s) = interp1(t_orig, tc_c(:, s), t_targ, 'linear', 'extrap');
-                end
-                tc_c = tc_c_interp;
+            t_sig   = ((0:nTime_c-1)' - before_fr_map) * TR_map;
+
+            % Interpolate eHRF template onto tc_c time grid (handles TR differences)
+            nTime_e  = size(tc_e, 1);
+            TR_e     = eHRFData.TR_mean;
+            before_e = round(eHRFData.before_stim_onset / TR_e);
+            t_ehrf   = ((0:nTime_e-1)' - before_e) * TR_e;
+            tc_e_on_sig = zeros(nTime_c, nSub);
+            for s = 1:nSub
+                tc_e_on_sig(:, s) = interp1(t_ehrf, tc_e(:, s), t_sig, 'linear', 'extrap');
             end
 
-            signal_e = mean(tc_e, 2, 'omitnan');
-            signal_c = mean(tc_c, 2, 'omitnan');
-            
+            % Interpolate canonical HRF template onto tc_c time grid
+            chrf_on_sig = interp1(t_chrf, chrf_template, t_sig, 'linear', 'extrap');
+
+            % Per-subject correlations: signal ~ eHRF and signal ~ cHRF
             r_e = zeros(nSub, 1);
             r_c = zeros(nSub, 1);
-            
+
             for s = 1:nSub
-                r_e(s) = corr(tc_e(:, s), signal_e, 'rows', 'complete');
-                r_c(s) = corr(tc_c(:, s), signal_c, 'rows', 'complete');
+                r_e(s) = corr(tc_c(:, s), tc_e_on_sig(:, s), 'rows', 'complete');
+                r_c(s) = corr(tc_c(:, s), chrf_on_sig,       'rows', 'complete');
             end
+
+            % Fisher Z-transform
+            Z_e = 0.5 * log((1 + max(-0.99, min(0.99, r_e))) ./ (1 - max(-0.99, min(0.99, r_e))));
+            Z_c = 0.5 * log((1 + max(-0.99, min(0.99, r_c))) ./ (1 - max(-0.99, min(0.99, r_c))));
             
-            if strcmp(selMetric, 'Z score')
-                Z_e = 0.5 * log((1 + max(-0.99, min(0.99, r_e))) ./ (1 - max(-0.99, min(0.99, r_e))));
-                Z_c = 0.5 * log((1 + max(-0.99, min(0.99, r_c))) ./ (1 - max(-0.99, min(0.99, r_c))));
-                [~, ~, ~, stats] = ttest(Z_e, Z_c);
-                val = stats.tstat;
+            if strcmp(selDir, 'eHRF > cHRF')
+                diff_vec = Z_e - Z_c;
             else
-                diffs = r_e - r_c;
-                val = mean(diffs, 'omitnan');
+                diff_vec = Z_c - Z_e;
             end
             
-            if strcmp(selDir, 'eHRF < cHRF')
-                val = -val;
+            [~, ~, ~, stats] = ttest(diff_vec);
+            t_stat = stats.tstat;
+
+            if strcmp(selMetric, 'Z score')
+                val = t_stat;
+
+            elseif strcmp(selMetric, '1 - p value')
+                % One-tailed p-value for the direction already encoded in
+                % diff_vec (flipped by the direction selector above).
+                % tcdf(t_stat, df) = P(T <= t_stat) = 1 - p_right_tail,
+                % so it is large (close to 1) when t_stat >> 0, i.e. when
+                % the selected direction is significant.
+                % Mask sub-threshold voxels (p > 0.05, i.e. val < 0.95) to
+                % NaN so they are transparent in the overlay.
+                df  = stats.df;
+                val = tcdf(t_stat, df);   % = 1 - p_one_tailed_right
+                if val < 0.95
+                    val = NaN;
+                end
+
+            else % Simple difference
+                if strcmp(selDir, 'eHRF > cHRF')
+                    val = mean(r_e - r_c, 'omitnan');
+                else % cHRF > eHRF
+                    val = mean(r_c - r_e, 'omitnan');
+                end
             end
             
             acr_idx = find(strcmp(atlas.infoRegions.acr, eHRFData.regional_avg.(regName).acr), 1);
@@ -245,22 +303,38 @@ function view_eHRF_cHRF_corr_peristimulus(model_name, atlas)
     end
 
     function addOverlay(mapData)
-        nonZeroVals = mapData(~isnan(mapData) & mapData ~= 0);
-        if isempty(nonZeroVals)
-            cMin = -1; cMax = 1;
+        selMetric = get(hMetricGroup.SelectedObject, 'String');
+
+        valMin = str2double(hMinBox.String);
+        valMax = str2double(hMaxBox.String);
+        
+        if isnan(valMin) || isnan(valMax) || valMin >= valMax
+            nonZeroVals = mapData(~isnan(mapData) & mapData ~= 0);
+            if isempty(nonZeroVals)
+                cMin = 0; cMax = 1;
+            else
+                if strcmp(selMetric, '1 - p value')
+                    cMin = 0.95;
+                    cMax = 1;
+                else
+                    maxAbs = max(abs([prctile(nonZeroVals, 5), prctile(nonZeroVals, 95)]));
+                    if maxAbs == 0, maxAbs = 1; end
+                    cMin = -maxAbs;
+                    cMax = maxAbs;
+                end
+            end
+            hMinBox.String = num2str(cMin, '%.2f');
+            hMaxBox.String = num2str(cMax, '%.2f');
         else
-            maxAbs = max(abs([prctile(nonZeroVals, 5), prctile(nonZeroVals, 95)]));
-            if maxAbs == 0, maxAbs = 1; end
-            cMin = -maxAbs;
-            cMax = maxAbs;
+            cMin = valMin;
+            cMax = valMax;
         end
+
         hNew = image(ax, zeros([volSize(1) volSize(3) 3]));
         idx = numel(overlays) + 1;
         overlays(idx).data   = mapData;
         overlays(idx).handle = hNew;
         overlays(idx).clim   = [cMin cMax];
-        hMinBox.String = num2str(cMin, '%.2f');
-        hMaxBox.String = num2str(cMax, '%.2f');
         updateDisplay();
     end
 
@@ -362,28 +436,91 @@ function view_eHRF_cHRF_corr_peristimulus(model_name, atlas)
         mu_e = mean(tc_e, 2, 'omitnan'); mu_e = mu_e(:);
         mu_c = mean(tc_c, 2, 'omitnan'); mu_c = mu_c(:);
         
-        % Force mu_c to match t_e length & grid via interpolation
-        mu_c_interp = interp1(t_c, mu_c, t_e, 'linear', 'extrap');
-        mu_c_interp = mu_c_interp(:);
-        
-        signal_proxy = (mu_e + mu_c_interp) / 2; 
+        smooth_win_s = str2double(hSmoothBox.String);
+        if ~isnan(smooth_win_s) && smooth_win_s > 0
+            sf_e = max(1, round(smooth_win_s / eHRFData.TR_mean));
+            sf_c = max(1, round(smooth_win_s / cHRFData.TR_mean));
+            tc_e = movmean(tc_e, sf_e, 1);
+            tc_c = movmean(tc_c, sf_c, 1);
+        end
+
+        mu_e = mean(tc_e, 2, 'omitnan'); mu_e = mu_e(:);
+        mu_c = mean(tc_c, 2, 'omitnan'); mu_c = mu_c(:);
+
+        % --- Build smooth canonical HRF curve on the fly ---
+        % conv(boxcar, hrf_kernel), trimmed to W_c and scaled to
+        % the peak amplitude of mu_e for visual comparison.
+        TR_c         = cHRFData.TR_mean;
+        stim_fr_c    = round(cHRFData.stim_dur_s        / TR_c);
+        before_fr_c  = round(cHRFData.before_stim_onset / TR_c);
+        after_fr_c   = round(cHRFData.after_stim_offset / TR_c);
+        W_c          = before_fr_c + stim_fr_c + after_fr_c;
+        boxcar_c     = [zeros(before_fr_c,1); ones(stim_fr_c,1); zeros(after_fr_c,1)];
+        hrf_kernel_c = fonduta.signal.hrf(TR_c, cHRFData.chaoyi_hrfParams);
+        ap_c         = conv(boxcar_c, hrf_kernel_c);
+        ap_c         = ap_c(1:W_c);
+        ap_max       = max(ap_c);
+        if ap_max > 0
+            ap_c = ap_c / ap_max * max(mu_e);  % scale to eHRF peak
+        end
+        t_c_full    = ((0:W_c-1)' - before_fr_c) * TR_c;
+        ap_c_interp = interp1(t_c_full, ap_c(:), t_e, 'linear', 'extrap');
 
         hold(axTC, 'on');
-        plot(axTC, t_e, mu_e, 'b-', 'LineWidth', 2);
-        plot(axTC, t_c, mu_c, 'r--', 'LineWidth', 1.8);
-        plot(axTC, t_e, signal_proxy, 'k:', 'LineWidth', 1.5);
+        plot(axTC, t_e, mu_e,        'b-',  'LineWidth', 2);
+        plot(axTC, t_e, ap_c_interp, 'r--', 'LineWidth', 1.8);
+        plot(axTC, t_c, mu_c,        'k:',  'LineWidth', 1.5);
         xline(axTC, 0, ':k', 'onset', 'LineWidth', 1);
         hold(axTC, 'off');
-        
+
         xlim(axTC, [min(t_e) max(t_e)]);
         xlabel(axTC, 'Time from onset (s)');
         ylabel(axTC, 'Amplitude (a.u.)');
         title(axTC, sprintf('[%s] %s', acr, eHRFData.regional_avg.(match_e).name), 'Interpreter', 'none', 'FontSize', 11);
-        legend(axTC, {'eHRF (Ridge)', 'cHRF (Simple)', 'Peristimulus Signal'}, 'Location', 'northeast');
+        legend(axTC, {'eHRF (Ridge)', 'canonical HRF', 'Simple avg'}, 'Location', 'northeast');
         grid(axTC, 'on');
         box(axTC, 'off');
 
-        txtInfo.String = sprintf('Voxel [%d %d %d] | Region: %s -- %s', crosshair, acr, eHRFData.regional_avg.(match_e).name);
+        % Compute per-subject correlations and t-test for txtInfo display.
+        % Matches generateComparisonMap: signal = tc_c, templates = tc_e (subject-
+        % specific eHRF) and chrf (canonical HRF, same ap_c_interp built above).
+        nSub_info = min(size(tc_e, 2), size(tc_c, 2));
+        if nSub_info >= 2
+            % Interpolate each subject's eHRF (tc_e) onto the tc_c time grid (t_c)
+            nTime_e_i  = size(tc_e, 1);
+            TR_e_i     = eHRFData.TR_mean;
+            before_e_i = round(eHRFData.before_stim_onset / TR_e_i);
+            t_ehrf_i   = ((0:nTime_e_i-1)' - before_e_i) * TR_e_i;
+            nTime_c_i  = size(tc_c, 1);
+            t_sig_i    = t_c(:);   % time axis already built for tc_c
+            tc_e_on_c  = zeros(nTime_c_i, nSub_info);
+            for s_i = 1:nSub_info
+                tc_e_on_c(:,s_i) = interp1(t_ehrf_i, tc_e(:,s_i), t_sig_i, 'linear', 'extrap');
+            end
+            % cHRF template on tc_c grid (ap_c already built on t_e above;
+            % re-interpolate onto t_c to be safe)
+            chrf_on_c_i = interp1(t_c_full, ap_c(:) / max(ap_c(:)), t_sig_i, 'linear', 'extrap');
+            r_e_info = zeros(nSub_info, 1);
+            r_c_info = zeros(nSub_info, 1);
+            for s_i = 1:nSub_info
+                r_e_info(s_i) = corr(tc_c(:,s_i), tc_e_on_c(:,s_i), 'rows', 'complete');
+                r_c_info(s_i) = corr(tc_c(:,s_i), chrf_on_c_i,      'rows', 'complete');
+            end
+            Ze_info = 0.5 * log((1 + max(-0.99,min(0.99,r_e_info))) ./ (1 - max(-0.99,min(0.99,r_e_info))));
+            Zc_info = 0.5 * log((1 + max(-0.99,min(0.99,r_c_info))) ./ (1 - max(-0.99,min(0.99,r_c_info))));
+            [~, ~, ~, st_info] = ttest(Ze_info - Zc_info);
+            t_info  = st_info.tstat;
+            p1_info = tcdf( t_info, st_info.df);   % 1-p for eHRF>cHRF
+            p2_info = tcdf(-t_info, st_info.df);   % 1-p for cHRF>eHRF
+            txtInfo.String = sprintf([ ...
+                'Voxel [%d %d %d]  |  %s -- %s\n' ...
+                't = %.2f  |  eHRF>cHRF: 1-p = %.3f  |  cHRF>eHRF: 1-p = %.3f'], ...
+                crosshair, acr, eHRFData.regional_avg.(match_e).name, ...
+                t_info, p1_info, p2_info);
+        else
+            txtInfo.String = sprintf('Voxel [%d %d %d] | Region: %s -- %s  (n<2, no stats)', ...
+                crosshair, acr, eHRFData.regional_avg.(match_e).name);
+        end
     end
 
     %% Main Display Routine
@@ -395,7 +532,12 @@ function view_eHRF_cHRF_corr_peristimulus(model_name, atlas)
         idxBase = floor(normBase * 255) + 1;
         hBase.CData = ind2rgb(idxBase, gray(256));
         
-        cmapParula = parula(256);
+        selMetric_disp = get(hMetricGroup.SelectedObject, 'String');
+        if strcmp(selMetric_disp, '1 - p value')
+            cmap = hot(256);
+        else
+            cmap = parula(256);
+        end
         for i = 1:numel(overlays)
             sData = squeeze(overlays(i).data(:, slice, :));
             cMin = overlays(i).clim(1);
@@ -403,14 +545,14 @@ function view_eHRF_cHRF_corr_peristimulus(model_name, atlas)
             normData = (sData - cMin) / (cMax - cMin);
             normData = max(0, min(1, normData));
             idxImg = floor(normData * 255) + 1;
-            rgbImg = ind2rgb(idxImg, cmapParula);
+            rgbImg = ind2rgb(idxImg, cmap);
             overlays(i).handle.CData = rgbImg;
             overlays(i).handle.AlphaData = 0.6 * (~isnan(sData) & sData ~= 0);
             uistack(overlays(i).handle, 'top');
         end
         
         if ~isempty(overlays)
-            colormap(ax, parula(256));
+            colormap(ax, cmap);
             if isempty(cbarHandle) || ~isvalid(cbarHandle)
                 cbarHandle = colorbar(ax, 'westoutside', 'Position', [0.03, 0.18, 0.02, 0.70]);
             end
