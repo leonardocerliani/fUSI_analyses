@@ -1,3 +1,6 @@
+%% SKETCHBOOK for tests and simple commands' reference
+
+
 %% Import fonduta package
 FONDUTA_PATH = '/data00/leonardo/github/fUSI_analyses/FONDUTA';
 addpath(genpath(FONDUTA_PATH));
