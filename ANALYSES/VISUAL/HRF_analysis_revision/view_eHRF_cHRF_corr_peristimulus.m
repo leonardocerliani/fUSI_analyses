@@ -59,7 +59,7 @@ function view_eHRF_cHRF_corr_peristimulus(model_name, atlas)
         'Position', [0.14, 0.90, 0.22, 0.04], 'BackgroundColor', 'w', ... % Expanded width to 0.30
         'SelectionChangedFcn', @(~,~) updateMapAndDisplay());
 
-    uicontrol(hMetricGroup, 'Style', 'radiobutton', 'String', 'Z score', ...
+    uicontrol(hMetricGroup, 'Style', 'radiobutton', 'String', 'T value', ...
         'Units', 'normalized', 'Position', [0.02, 0.1, 0.30, 0.8], 'BackgroundColor', 'w', 'FontSize', 9, 'Value', 1);
     uicontrol(hMetricGroup, 'Style', 'radiobutton', 'String', 'Simple difference', ...
         'Units', 'normalized', 'Position', [0.34, 0.1, 0.33, 0.8], 'BackgroundColor', 'w', 'FontSize', 9);
@@ -78,7 +78,7 @@ function view_eHRF_cHRF_corr_peristimulus(model_name, atlas)
         'Units', 'normalized', 'Position', [0.52, 0.1, 0.45, 0.8], 'BackgroundColor', 'w', 'FontSize', 9);
 
     ax = axes('Parent', fig, 'Position', [0.08, 0.18, 0.48, 0.70]);
-    axTC = axes('Parent', fig, 'Position', [0.62, 0.18, 0.34, 0.70]);
+    axTC = axes('Parent', fig, 'Position', [0.62, 0.22, 0.34, 0.68]);
     title(axTC, 'Regional Responses & Signal', 'FontSize', 12);
     xlabel(axTC, 'Time from onset (s)');
     ylabel(axTC, 'Amplitude (a.u.)');
@@ -105,7 +105,8 @@ function view_eHRF_cHRF_corr_peristimulus(model_name, atlas)
         'BackgroundColor', 'w', 'FontSize', 9, 'HorizontalAlignment', 'right');
     hSmoothBox = uicontrol(fig, 'Style', 'edit', 'String', '5', ...
         'Units', 'normalized', 'Position', [0.535, 0.02, 0.035, 0.04], ...
-        'FontSize', 9, 'Callback', @(~,~) plotRegionTimeCourse());
+        'FontSize', 9, 'Callback', @(~,~) updateMapAndDisplay());
+
 
     uicontrol(fig, 'Style', 'text', 'String', 'Min:', ...
         'Units', 'normalized', 'Position', [0.59, 0.02, 0.04, 0.03], ...
@@ -119,10 +120,17 @@ function view_eHRF_cHRF_corr_peristimulus(model_name, atlas)
     hMaxBox = uicontrol(fig, 'Style', 'edit', 'String', '10', ...
         'Units', 'normalized', 'Position', [0.735, 0.02, 0.045, 0.04], ...
         'FontSize', 9, 'Callback', @btnUpdateCLim);
+    uicontrol(fig, 'Style', 'text', 'String', 'Min subj per group:', ...
+        'Units', 'normalized', 'Position', [0.79, 0.02, 0.05, 0.03], ...
+        'BackgroundColor', 'w', 'FontSize', 9, 'HorizontalAlignment', 'right');
+    hMinSubjBox = uicontrol(fig, 'Style', 'edit', 'String', '1', ...
+        'Units', 'normalized', 'Position', [0.845, 0.02, 0.04, 0.04], ...
+        'FontSize', 9, 'Callback', @(~,~) updateMapAndDisplay());
+
 
     txtInfo = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
         'Position', [0.08, 0.08, 0.88, 0.08], 'BackgroundColor', 'w', ...
-        'FontSize', 10, 'HorizontalAlignment', 'left');
+        'FontSize', 12, 'HorizontalAlignment', 'left');
 
     loadModelData(model_name);
 
@@ -198,16 +206,15 @@ function view_eHRF_cHRF_corr_peristimulus(model_name, atlas)
     end
 
     function corrMap = generateComparisonMap()
+
+        min_subj_thresh = max(2, round(str2double(hMinSubjBox.String)));
+        % floor at 2 because ttest requires at least 2 observations
+
         corrMap = nan(size(atlas.Regions));
         selMetric = get(hMetricGroup.SelectedObject, 'String');
         selDir    = get(hDirGroup.SelectedObject, 'String');
-        
-        common_regions = intersect(fieldnames(eHRFData.regional_hrf), fieldnames(cHRFData.regional_avg));
 
         % --- Build canonical HRF template once (same for all regions/subjects) ---
-        % Signal is always tc_c (simple avg peristimulus); templates are:
-        %   eHRF: subject-specific tc_e from ridge LOO
-        %   cHRF: conv(boxcar, hrf_kernel) at cHRFData TR, trimmed to W_c
         TR_map        = cHRFData.TR_mean;
         stim_fr_map   = round(cHRFData.stim_dur_s        / TR_map);
         before_fr_map = round(cHRFData.before_stim_onset / TR_map);
@@ -220,18 +227,54 @@ function view_eHRF_cHRF_corr_peristimulus(model_name, atlas)
         chrf_template = chrf_template(:);
         t_chrf        = ((0:W_map-1)' - before_fr_map) * TR_map;
 
-        for fi = 1:numel(common_regions)
-            regName = common_regions{fi};
-            hrf_e = eHRFData.regional_hrf.(regName).hrf;  % [K x nSub] ridge betas
-            tc_c  = cHRFData.regional_avg.(regName).tc;   % [nTime_c x nSub] peristimulus signal
+        % --- Iterate over ALL atlas regions, matching by .acr field (not fieldname) ---
+        % This is the same lookup used in plotRegionTimeCourse so map and info bar agree.
+        fNames_e = fieldnames(eHRFData.regional_hrf);
+        fNames_c = fieldnames(cHRFData.regional_avg);
+
+        for acr_idx = 1:numel(atlas.infoRegions.acr)
+            acr_str = atlas.infoRegions.acr{acr_idx};
+
+            % Find field in eHRFData whose .acr matches
+            match_e = '';
+            for k = 1:numel(fNames_e)
+                if isfield(eHRFData.regional_hrf.(fNames_e{k}), 'acr') && ...
+                   strcmp(eHRFData.regional_hrf.(fNames_e{k}).acr, acr_str)
+                    match_e = fNames_e{k}; break;
+                end
+            end
+
+            % Find field in cHRFData whose .acr matches
+            match_c = '';
+            for k = 1:numel(fNames_c)
+                if isfield(cHRFData.regional_avg.(fNames_c{k}), 'acr') && ...
+                   strcmp(cHRFData.regional_avg.(fNames_c{k}).acr, acr_str)
+                    match_c = fNames_c{k}; break;
+                end
+            end
+
+            if isempty(match_e) || isempty(match_c), continue; end
+
+            hrf_e = eHRFData.regional_hrf.(match_e).hrf;  % [K x nSub] ridge betas
+            tc_c  = cHRFData.regional_avg.(match_c).tc;   % [nTime_c x nSub] peristimulus
 
             nSub = min(size(hrf_e, 2), size(tc_c, 2));
-            if nSub < 2, continue; end
+            
+            if nSub < min_subj_thresh, continue; end
 
             hrf_e = hrf_e(:, 1:nSub);
             tc_c  = tc_c(:,  1:nSub);
 
-            % Build time axis for tc_c (the signal)
+            % Apply same smoothing as info bar stats (5s fixed window, same as hSmoothBox default)
+            smooth_win_s_map = str2double(hSmoothBox.String);
+            if ~isnan(smooth_win_s_map) && smooth_win_s_map > 0
+                sf_c_map = max(1, round(smooth_win_s_map / TR_map));
+                tc_c     = movmean(tc_c, sf_c_map, 1);   % only smooth the signal, not the betas
+            end
+
+
+
+            % Build time axis for tc_c
             nTime_c = size(tc_c, 1);
             t_sig   = ((0:nTime_c-1)' - before_fr_map) * TR_map;
 
@@ -247,7 +290,6 @@ function view_eHRF_cHRF_corr_peristimulus(model_name, atlas)
             % Per-subject correlations: signal ~ eHRF and signal ~ cHRF
             r_e = zeros(nSub, 1);
             r_c = zeros(nSub, 1);
-
             for s = 1:nSub
                 r_e(s) = corr(tc_c(:, s), hrf_e_on_sig(:, s), 'rows', 'complete');
                 r_c(s) = corr(tc_c(:, s), chrf_on_sig,        'rows', 'complete');
@@ -256,47 +298,40 @@ function view_eHRF_cHRF_corr_peristimulus(model_name, atlas)
             % Fisher Z-transform
             Z_e = 0.5 * log((1 + max(-0.99, min(0.99, r_e))) ./ (1 - max(-0.99, min(0.99, r_e))));
             Z_c = 0.5 * log((1 + max(-0.99, min(0.99, r_c))) ./ (1 - max(-0.99, min(0.99, r_c))));
-            
-            if strcmp(selDir, 'eHRF > cHRF')
-                diff_vec = Z_e - Z_c;
-            else
-                diff_vec = Z_c - Z_e;
-            end
-            
-            [~, ~, ~, stats] = ttest(diff_vec);
-            t_stat = stats.tstat;
 
-            if strcmp(selMetric, 'Z score')
+            % Always compute diff as eHRF - cHRF; direction flips the stored value
+            [~, ~, ~, stats] = ttest(Z_e - Z_c);
+            t_eGTc =  stats.tstat;   % positive = eHRF fits better
+            t_cGTe = -stats.tstat;   % positive = cHRF fits better
+
+            if strcmp(selDir, 'eHRF > cHRF')
+                t_stat = t_eGTc;
+            else
+                t_stat = t_cGTe;
+            end
+
+            if strcmp(selMetric, 'T value')
                 val = t_stat;
 
             elseif strcmp(selMetric, '1 - p value')
-                % One-tailed p-value for the direction already encoded in
-                % diff_vec (flipped by the direction selector above).
-                % tcdf(t_stat, df) = P(T <= t_stat) = 1 - p_right_tail,
-                % so it is large (close to 1) when t_stat >> 0, i.e. when
-                % the selected direction is significant.
-                % Mask sub-threshold voxels (p > 0.05, i.e. val < 0.95) to
-                % NaN so they are transparent in the overlay.
-                df  = stats.df;
-                val = tcdf(t_stat, df);   % = 1 - p_one_tailed_right
+                % 1-p for the selected direction: large when t_stat >> 0
+                val = tcdf(t_stat, stats.df);
                 if val < 0.95
                     val = NaN;
                 end
 
-            else % Simple difference
+            else  % Simple difference
                 if strcmp(selDir, 'eHRF > cHRF')
                     val = mean(r_e - r_c, 'omitnan');
-                else % cHRF > eHRF
+                else
                     val = mean(r_c - r_e, 'omitnan');
                 end
             end
-            
-            acr_idx = find(strcmp(atlas.infoRegions.acr, eHRFData.regional_hrf.(regName).acr), 1);
-            if ~isempty(acr_idx)
-                corrMap(atlas.Regions == acr_idx) = val;
-            end
+
+            corrMap(atlas.Regions == acr_idx) = val;
         end
     end
+
 
     function addOverlay(mapData)
         selMetric = get(hMetricGroup.SelectedObject, 'String');
@@ -411,17 +446,20 @@ function view_eHRF_cHRF_corr_peristimulus(model_name, atlas)
 
         smooth_win_s = str2double(hSmoothBox.String);
         if ~isnan(smooth_win_s) && smooth_win_s > 0
-            sf_e = max(1, round(smooth_win_s / eHRFData.time_resampling));
             sf_c = max(1, round(smooth_win_s / TR_c_plot));
-            tc_e = movmean(tc_e, sf_e, 1);
-            tc_c = movmean(tc_c, sf_c, 1);
+            tc_c = movmean(tc_c, sf_c, 1);   % only smooth the signal, not the betas
         end
+
 
         mu_e = mean(tc_e, 2, 'omitnan'); mu_e = mu_e(:);
         mu_c = mean(tc_c, 2, 'omitnan'); mu_c = mu_c(:);
 
-
-        mu_c = mean(tc_c, 2, 'omitnan'); mu_c = mu_c(:);
+        % Smooth displayed eHRF curve using the same window (cosmetic, post-averaging)
+        if ~isnan(smooth_win_s) && smooth_win_s > 0
+            TR_e_plot = t_e(2) - t_e(1);   % step size of lag_times_s
+            sf_e      = max(1, round(smooth_win_s / TR_e_plot));
+            mu_e      = movmean(mu_e, sf_e);
+        end
 
         % --- Build smooth canonical HRF curve on the fly ---
         % conv(boxcar, hrf_kernel), trimmed to W_c and scaled to
@@ -490,15 +528,21 @@ function view_eHRF_cHRF_corr_peristimulus(model_name, atlas)
             end
             Ze_info = 0.5 * log((1 + max(-0.99,min(0.99,r_e_info))) ./ (1 - max(-0.99,min(0.99,r_e_info))));
             Zc_info = 0.5 * log((1 + max(-0.99,min(0.99,r_c_info))) ./ (1 - max(-0.99,min(0.99,r_c_info))));
+
             [~, ~, ~, st_info] = ttest(Ze_info - Zc_info);
-            t_info  = st_info.tstat;
-            p1_info = tcdf( t_info, st_info.df);   % 1-p for eHRF>cHRF
-            p2_info = tcdf(-t_info, st_info.df);   % 1-p for cHRF>eHRF
+            % t_eGTc > 0 means eHRF fits better; t_cGTe = -t_eGTc
+            t_eGTc =  st_info.tstat;
+            t_cGTe = -st_info.tstat;
+            % One-tailed p-values (right tail): small p = significant in that direction
+            p_eGTc = tcdf(-t_eGTc, st_info.df);   % P(T > t_eGTc | H0)
+            p_cGTe = tcdf(-t_cGTe, st_info.df);   % P(T > t_cGTe | H0)
             txtInfo.String = sprintf([ ...
                 'Voxel [%d %d %d]  |  %s -- %s\n' ...
-                't = %.2f  |  eHRF>cHRF: 1-p = %.3f  |  cHRF>eHRF: 1-p = %.3f'], ...
+                'eHRF > cHRF: T(%d) = %.2f,  p = %.4f    |    cHRF > eHRF: T(%d) = %.2f,  p = %.4f'], ...
                 crosshair, acr, eHRFData.regional_hrf.(match_e).name, ...
-                t_info, p1_info, p2_info);
+                st_info.df, t_eGTc, p_eGTc, st_info.df, t_cGTe, p_cGTe);
+
+
         else
             txtInfo.String = sprintf('Voxel [%d %d %d] | Region: %s -- %s  (n<2, no stats)', ...
                 crosshair, acr, eHRFData.regional_hrf.(match_e).name);
@@ -518,7 +562,8 @@ function view_eHRF_cHRF_corr_peristimulus(model_name, atlas)
         if strcmp(selMetric_disp, '1 - p value')
             cmap = hot(256);
         else
-            cmap = parula(256);
+            % cmap = parula(256);
+            cmap = cool(256);
         end
         for i = 1:numel(overlays)
             sData = squeeze(overlays(i).data(:, slice, :));
@@ -532,7 +577,7 @@ function view_eHRF_cHRF_corr_peristimulus(model_name, atlas)
             % Mask pixels that are NaN, exactly zero (background), or
             % outside the user-specified [cMin, cMax] range so that
             % below-threshold voxels become fully transparent regardless
-            % of which metric (Z score / Simple difference / 1-p value)
+            % of which metric (T value / Simple difference / 1-p value)
             % is being displayed.
             inRange = ~isnan(sData) & sData ~= 0 & sData >= cMin & sData <= cMax;
             overlays(i).handle.AlphaData = 0.6 * inRange;

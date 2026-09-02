@@ -130,7 +130,7 @@ Both one-tailed `1 − p` values are always displayed.
 | **Reload Model Files** | Re-loads `.mat` files |
 | **Clear Overlays** | Removes overlay |
 | **Lines ON/OFF** | Atlas region boundaries |
-| **Smooth (s)** | Smoothing applied to `hrf_e` and `tc_c` before plotting |
+| **Smooth (s)** | Box-car smoothing window in seconds. Applied to `tc_c` (peristimulus signal) before correlation and before plotting the Simple avg curve. Also applied to `mu_e` (post-averaging only) for visual display of the eHRF curve. **Never applied to individual-subject ridge betas** (would collapse variance and inflate T-values). |
 | **Min / Max** | Manual colormap limit override |
 
 ---
