@@ -169,5 +169,7 @@ M5 = load(fullfile(res_dir, "simple_avg_M5_Behavior_eta003_map.mat"));
 Mdiff = M5.correlation_map - M1.correlation_map;
 save('pippo.mat','Mdiff');
 
+%% 
 
+atlas = fonduta.atlas.load_atlas();
 

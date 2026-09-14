@@ -1,0 +1,60 @@
+{
+  "experiment_id": "run-xxxxxx",
+  "date": "YYYY-MM-DD",
+  "processing_parameters": {
+    "min_stim_duration_sec": 0.01,
+    "min_event_timestamp_sec": 0.1,
+    "pdi_frame_channel": 3
+  },
+  "file_names": {
+    "fusi_folder_pattern": "FUSI_data*",
+    "pdi_binary": "fUS_block_PDI_float.bin",
+    "scan_params": [
+      "post_L22-14_PlaneWave_FUSI_data.mat",
+      "L22-14_PlaneWave_FUSI_data.mat"
+    ],
+    "ttl_pattern": "TTL*.csv",
+    "nidaq_log": ["NIDAQ.csv", "DAQ.csv"]
+  },
+  "stimuli": {
+    "fus_stimuli": {
+      "csv_filename": "FUStimulation.csv",
+      "TTL_channel": [4, 5, 12]
+    },
+    "shock_tail_stimuli": {
+      "csv_filename": "ShockStimulation.csv",
+      "metadata_excel": "shockIntensities_and_perceivedSqueaks.xlsx",
+      "TTL_channel": [5, 12]
+    },
+    "shock_paw_stimuli": {
+      "csv_filename": "ShockStimulation.csv",
+      "TTL_channel": [4, 12]
+    },
+    "visual_stimuli": {
+      "csv_filename": "VisualStimulation.csv",
+      "TTL_channel": 10
+    },
+    "audio_USV_stimuli": {
+      "csv_filename": "AudioStimulation.csv",
+      "TTL_channel": 11
+    },
+    "droplet_stimuli": {
+      "csv_filename": "DropletStimulation.csv",
+      "TTL_channel_launch": [2, 5, 6],
+      "TTL_channel_touch1": 10,
+      "TTL_channel_touch2": 11,
+      "TTL_channel_shock": 12
+    }
+  },
+  "behaviour": {
+    "pupil_camera": {
+      "csv_filename": "pupil_camera.csv"
+    },
+    "running_wheel": {
+      "csv_filename": "RunningWheel.csv"
+    },
+    "gsensor": {
+      "csv_filename": "GSensor.csv"
+    }
+  }
+}
