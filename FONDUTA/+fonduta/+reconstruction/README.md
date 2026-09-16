@@ -101,6 +101,11 @@ In order to keep the file simple, it is advised to keep only the information rel
 
 </details>
 
+## Hardware Triggering & NIDAQ Channel Specifications
+
+Session initialization and task baseline alignment rely strictly on **NIDAQ Channels 5 and 6** to capture the first rising hardware pulse ($t = 0.0\text{ s}$). These specific channels serve as the universal temporal anchor across all experimental paradigms in the pipeline. **DO NOT REASSIGN OR ALTER CHANNELS 5 AND 6 IN HARDWARE OR CONFIGURATION FILES**, as modifying these triggers will break the zero-anchoring logic and cause timing misalignment across fUSI frames and behavioral event markers.
+
+
 ## Mandatory files for reconstruction
 - **experiment_config.json**
 Configuration file defining acquisition thresholds, target file patterns, 

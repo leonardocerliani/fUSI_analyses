@@ -64,11 +64,10 @@ function PDI = functional_reconstruction(datapath, savepath)
     end
 
 
-    % %% TMP MANUAL ASSIGNMENT OF datapath and savepath - ONLY FOR DEV INTERACTIVE TEST
-    % % datapath='/Users/leonardo/Dropbox/fUSI/fUSI_TUT_NOT_UPDATED_TO_STORM/data/Data_collection/ses-231215/run-115047-func'
-    % datapath='/Users/leonardo/Dropbox/fUSI/data/fUSIHarmAversion/Data_collection/sub-mockexperiment/ses-999999/run-155150-func'
-    % 
-    % savepath = strrep(datapath, 'Data_collection', 'Data_analysis');
+%     % TMP MANUAL ASSIGNMENT OF datapath and savepath - ONLY FOR DEV INTERACTIVE TEST
+%     datapath='/data03/fUSIHarmAversion/Data_collection/sub-mockexperiment/ses-999999/run-155150-func'
+%     savepath = strrep(datapath, 'Data_collection', 'Data_analysis');
+%     fprintf('CAREFUL!!! RUNNING TEST DATA %s.\n', datapath);
 
 
     %% Load Configuration File
@@ -194,8 +193,97 @@ function PDI = functional_reconstruction(datapath, savepath)
         error('No NIDAQ software log found in %s.', datapath);
     end
 
+    %% 
+    fprintf('STARTING LAG CORRECTION\n');
+
+
     %% Correct for Lagged PDI and Interpolate
-    % Removed because not working and not necessary    
+
+    % IMPORTANT: LagAnalysisFusi currently breaks, possibly because it
+    % cannot find the .bin files. However it is likely that we do not need
+    % this anymore. We should investigate with Chaoyi. 
+    % The code is left because PDItime is needed in the further
+    % preprocessing and analysis, however at the moment it is set according
+    % to TTLinfo(PDITTL, 1). That is: it assumes every TTL pulse corresponds 
+    % to a valid frame without checking for hardware block drops.  
+
+    % =========================================================================
+    % LAG ANALYSIS & PDI TIME ALIGNMENT
+    % =========================================================================
+    % Attempts to read raw ultrasound binary metadata to perform frame-drop
+    % detection and stability checks. If reading fails (e.g., missing binary files), 
+    % execution seamlessly jumps to the catch block for fallback NIDAQ alignment.
+    try
+        [~, timeTagsSec] = LagAnalysisFusi(fusDatapath);
+        close all % closes the plot from LagAnalysisFusi()
+        frameInterval = mode(diff(timeTagsSec));
+        blockDuration = ceil(1 / frameInterval);
+        acceptIndex = true(size(timeTagsSec));
+        
+        % Validate block intervals: Check a rolling window of frames (blockDuration).
+        % If jitter/range of frame intervals inside any window exceeds 10ms (0.01s), 
+        % flag those blocks as corrupted/dropped and discard them from the image volume.
+        for it = 1:numel(timeTagsSec)-blockDuration
+            rangeInterval = range(diff(timeTagsSec(it:it+blockDuration)));
+            if rangeInterval > 0.01
+                acceptIndex(it) = false;
+            end
+        end
+        for it = numel(timeTagsSec)-blockDuration:numel(timeTagsSec)
+            rangeInterval = range(diff(timeTagsSec(it-blockDuration:it)));
+            if rangeInterval > 0.01
+                acceptIndex(it) = false;
+            end
+        end
+        
+        PDItime = TTLinfo(PDITTL(1), 1) + timeTagsSec(acceptIndex);
+        pdi = pdi(:, :, acceptIndex);
+    catch ME
+        % Fallback Path: Bypasses raw binary metadata inspection when LagAnalysisFusi fails.
+        % Assigns PDItime directly from NIDAQ Channel 3 TTL pulses (1:1 frame match)
+        % and sets acceptIndex = true to prevent downstream undefined variable errors.
+        warning('LagAnalysisFusi failed (%s). Using fallback NIDAQ TTL timestamps.', ME.message);
+        PDItime = TTLinfo(PDITTL, 1);
+        blockDuration = mode(diff(PDItime)); % Dominant sampling interval (dt)
+        acceptIndex = true(size(PDItime)); % Fix: prevent undefined variable crash
+    end
+
+    % Temporal Phase Alignment: A TTL trigger fires when frame acquisition begins,
+    % but the reconstructed blood volume frame represents an integrated average over
+    % that acquisition window. Adding mean(diff(PDItime)) (~1 frame interval) shifts
+    % timestamps to represent the completion/center of frame integration.
+    PDItime = PDItime + mean(diff(PDItime)); 
+
+    % Locating Task Baseline: Searches NIDAQ channels for the first rising edge
+    % marking session initialization (checks Channel 6 first, falls back to Channel 5).
+    % NB: Parametrize this for ALL experiments would be a nightmare, so
+    % please make sure that you hardware launch channels are 5 and/or 6.
+    initTTL = find(diff(TTLinfo(:,6)) > 0, 1, 'first');
+    if isempty(initTTL)
+        initTTL = find(diff(TTLinfo(:,5)) > 0, 1, 'first');
+    end
+    
+    if ~isempty(initTTL)
+        t_launch = TTLinfo(initTTL, 1);
+    else
+        t_launch = 0;
+    end
+
+    % Zero-Anchoring & Pre-Roll Trimming:
+    % Discards fUSI frames captured before task launch (t_frame < t_launch) from 
+    % both 'pdi' and 'PDItime', then subtracts t_launch to zero-anchor the timeline 
+    % (t = 0.0s) strictly to the Task Launch event without mutating raw TTLinfo.
+    validFrames = (PDItime >= t_launch);
+    pdi(:, :, ~validFrames) = [];
+    PDItime = PDItime(validFrames) - t_launch; % Zero-anchor PDI.time to task launch
+    
+    % Store aligned time vector and frame duration in output structure
+    PDI.time = PDItime;
+    PDI.Dim.dt = blockDuration;
+
+
+
+
 
     %% Explicit Processing of Stimuli & Behaviour
     minTimestamp = cfg.processing_parameters.min_event_timestamp_sec;
@@ -422,6 +510,9 @@ function PDI = functional_reconstruction(datapath, savepath)
             % Store alignment metadata for reference
             PDI.stimInfo.UserData.timeOffset = timeOffset;
             PDI.stimInfo.UserData.hardwareTaskStart = hardwareTaskStart;
+
+            % Plot the results of the reconstruction
+            fonduta.reconstruction.verify_droplet_reconstruction(PDI, TTLinfo, cfg, pdi);
         end
     end
 

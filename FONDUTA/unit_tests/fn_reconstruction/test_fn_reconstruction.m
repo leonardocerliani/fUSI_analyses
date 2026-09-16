@@ -31,14 +31,32 @@ addpath(genpath(FONDUTA_PATH));
 %     ├── Touchsensor.csv
 %     └── TTL20260908T155016.csv
 
-help fonduta.reconstruction.functional_reconstruction
+% help fonduta.reconstruction.functional_reconstruction
 
-datapath='/data03/fUSIHarmAversion/Data_collection/sub-mockexperiment/ses-999999/run-155150-func'
+
+%% Test Visual from methods paper
+experiment_root_folder = '/data03/fUSIMethodsPaper_LC'
+fn_collection_path='Data_collection/sub-methods02/ses-231215/run-115047/';
+datapath = fullfile(experiment_root_folder, fn_collection_path)
 
 fonduta.reconstruction.functional_reconstruction(datapath)
 
+% % Load the generated PDI for inspection
+% PDI = load('/data03/fUSIMethodsPaper_LC/Data_analysis/sub-methods02/ses-231215/run-115047/PDI.mat').PDI
 
-%%
+
+%% Test Droplets mock scan
+experiment_root_folder = '/data03/fUSIHarmAversion';
+fn_collection_path='/Data_collection/sub-mockexperiment/ses-999999/run-155150-func';
+datapath = fullfile(experiment_root_folder, fn_collection_path)
+
+fonduta.reconstruction.functional_reconstruction(datapath)
+
+% % Load the generated PDI for inspection
+% PDI = load('/data03/fUSIHarmAversion/Data_analysis/sub-mockexperiment/ses-999999/run-155150-func/PDI.mat').PDI
+
+
+
 %% EXTRA CHECK FOR DROPLET PARADIGM
 
 % The plot below shows the alignment of the shock artifact with the shock
@@ -51,7 +69,8 @@ fonduta.reconstruction.functional_reconstruction(datapath)
 datapath='/data03/fUSIHarmAversion/Data_collection/sub-mockexperiment/ses-999999/run-155150-func'
 
 open fonduta.reconstruction.functional_reconstruction
-% Now execute all the code inside
+% Now execute all the code inside, then execute the next cell to get the
+% plot that verifies that everything is temporally aligned
 
 
 %% Visualization of fUSI Signal & Behavioral Events Highlighting the artifact ---
