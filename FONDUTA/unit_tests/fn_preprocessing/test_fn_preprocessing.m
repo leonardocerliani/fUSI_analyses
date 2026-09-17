@@ -2,7 +2,7 @@
 FONDUTA_PATH = '/data00/leonardo/github/fUSI_analyses/FONDUTA';
 addpath(genpath(FONDUTA_PATH));
 
-addpath(genpath('.'))
+% addpath(genpath('.'))
 
 %% 
 
@@ -20,4 +20,5 @@ anat_COLLECTION_path = fullfile(experiment_root_folder, 'Data_collection/sub-met
 func_ANALYSIS_path=strrep(func_COLLECTION_path, 'Data_collection', 'Data_analysis');
 anat_ANALYSIS_path=strrep(anat_COLLECTION_path, 'Data_collection', 'Data_analysis');
 
-% fonduta.preprocessing.func_preprocessing(anat_ANALYSIS_path, func_ANALYSIS_path)
+fonduta.preprocessing.func_preprocessing(anat_ANALYSIS_path, func_ANALYSIS_path)
+
