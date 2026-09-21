@@ -2,69 +2,33 @@
 
 This document explains the synchronization pipeline between software-logged task events (`dropTable`) and hardware-recorded TTL pulses (`TTLinfo`) acquired via NIDAQ.
 
-There are three descriptors of the events:
-
-- **`TTLinfo.csv`**
-  - time in sec.msec on channel **1**
-  - fusi on channel **3**
-  - start of the experiment on channel **5** (fallback on channel 6)
-- **`NIDAQ.csv`**
-  - time (timestamp) in the first column
-  - columns for touch1/2 and shock_left
-  - touch1/2 ON = 1, OFF = 0
-  - shock ON = 0, OFF = 1
-  - shock_right (not required) always = 1
-  - droplet always = 1 (not informative)
-- **`DropletStimulation.csv`**
-  - time (timestamp) in the first column
-  - all events including droplet
-
-The NIDAQ file is not really useful for the events, since the same event is logged on different rows, making the definition of the timing difficult. Plus it does not include the droplet.
-
-However, we do need the NIDAQ CSV to extract the timing of the droplet, since the NIDAQ gives us the timestamp of TTLinfo start_experiment (ch 5) and DropletStimulation.
-
 ---
 
 ## 1. Overview & Theoretical Background
 
 During experimental acquisition, event timestamps originate from two distinct clock domains:
-
-1. **Software Domain (`dropTable` CSV):** Timestamps logged by the behavioral control script. Timestamps are referenced to script initialization, `t_script_init = dropTable.time(1)`.
-
-2. **Hardware Domain (`TTLinfo` NIDAQ):** High-frequency analog/digital recordings starting when NIDAQ arms, `t_NIDAQ_arm = NIDAQInfo.time(1) = 0 s`.
+1. Software Domain (`dropTable` CSV): Timestamps logged by the behavioral control script. Timestamps are referenced to script initialization (`t_script_init = dropTable.time(1)`).
+2. Hardware Domain (`TTLinfo` NIDAQ): High-frequency analog/digital recordings starting when NIDAQ arms (`t_NIDAQ_arm = NIDAQInfo.time(1) = 0 s`).
 
 ### Clock Domain Relationships & Variables
-
 - `t_NIDAQ_arm`: The baseline reference time (`0 s`) for all hardware channels in `TTLinfo`.
 - `hardwareTaskStart`: Timestamp of the task launch trigger pulse on Channel 5 relative to `t_NIDAQ_arm`.
-- `csvStartRelative`: Delay between software script initialization and NIDAQ arming.
-
+- `csvStartRelative`: Delay between software script initialization and NIDAQ arming:
   `csvStartRelative = dropTable.time(1) - NIDAQInfo.time(1)`
-
-- `timeOffset`: Overall transformation offset required to project software timestamps onto the NIDAQ hardware timeline.
-
+- `timeOffset`: Overall transformation offset required to project software timestamps onto the NIDAQ hardware timeline:
   `timeOffset = hardwareTaskStart - csvStartRelative`
 
 ### Timestamp Transformation Formulas
 
-#### A. Transforming `dropTable` Events to NIDAQ Hardware Timeline
-
+#### A. Transforming `dropTable` events to NIDAQ Hardware Timeline
 To map software timestamps (`event.time`) onto the NIDAQ hardware clock:
-
 `onset_time = (event.time - NIDAQInfo.time(1)) + timeOffset`
 
-Substituting:
-
-`timeOffset = hardwareTaskStart - (dropTable.time(1) - NIDAQInfo.time(1))`
-
-gives:
-
+Substituting `timeOffset = hardwareTaskStart - (dropTable.time(1) - NIDAQInfo.time(1))`:
 `onset_time = (event.time - dropTable.time(1)) + hardwareTaskStart`
 
 #### B. Direct Synchronization Alignment
-
 When aligning software events to match hardware event plots directly (accounted for pre-arm delay):
-
 `onset_time_aligned = (event.time - dropTable.time(1)) + hardwareTaskStart + csvStartRelative`
 
 ---
@@ -72,74 +36,8 @@ When aligning software events to match hardware event plots directly (accounted 
 ## 2. Event Routing Strategy
 
 In the `functional_reconstruction` pipeline:
-
-- **Physiological / Physical Stimuli (`touch1`, `touch2`, `shock`):** Sourced directly from raw digital TTL hardware channels (`TTLinfo`). These serve as ground truth.
-- **Secondary / Software-Only Events (`drop`):** Sourced from `dropTable` software logs and mapped to the NIDAQ timeline using `timeOffset`.
-
----
-
-## 3. Full Processing & Verification MATLAB Pipeline
-
-This document explains the synchronization pipeline between software-logged task events (`dropTable`) and hardware-recorded TTL pulses (`TTLinfo`) acquired via NIDAQ.
-
-
-There are three descriptors of the events:
-
-- **TTLinfo.csv** 
-    - time in sec.msec on channel **1**
-    - fusi on channel **3**
-    - start of the experiment on channel **5** (fallback on channel 6)
-- **NIDAQ.csv**
-    - time (timestamp) in the first column
-    - columns for touch1/2 and shock_left
-    - touch1/2 ON = 1, OFF = 0 
-    - shock ON = 0, OFF = 1 
-    - shock_right (not required) always = 1
-    - droplet always = 1 (not informative)
-- **DropletStimulation.csv**
-    - time (timestamp) in the first column
-    - all events including droplet
-
-The NIDAQ file is not really useful for the events, since the same event is logged on different rows, making the definition of the timing difficult. Plus it does not include the droplet.
-
-However, we do need the NIDAQ csv to extract the timing of the droplet, since the NIDAQ gives us the timestamp of TTLinfo start_experiment (ch 5) and DropletStimulation 
-
----
-
-## 1. Overview & Theoretical Background
-
-During experimental acquisition, event timestamps originate from two distinct clock domains:
-1. **Software Domain (`dropTable` CSV):** Timestamps logged by the behavioral control script. Timestamps are referenced to script initialization ($t_{\text{script\_init}} = \text{dropTable.time}(1)$).
-2. **Hardware Domain (`TTLinfo` NIDAQ):** High-frequency analog/digital recordings starting when NIDAQ arms ($t_{\text{NIDAQ\_arm}} = \text{NIDAQInfo.time}(1) = 0\text{ s}$).
-
-### Clock Domain Relationships & Variables
-- $t_{\text{NIDAQ\_arm}}$: The baseline reference time ($0\text{ s}$) for all hardware channels in `TTLinfo`.
-- $\text{hardwareTaskStart}$: Timestamp of the task launch trigger pulse on Channel 5 relative to $t_{\text{NIDAQ\_arm}}$.
-- $\text{csvStartRelative}$: Delay between software script initialization and NIDAQ arming:
-  $$\text{csvStartRelative} = \text{dropTable.time}(1) - \text{NIDAQInfo.time}(1)$$
-- $\text{timeOffset}$: Overall transformation offset required to project software timestamps onto the NIDAQ hardware timeline:
-  $$\text{timeOffset} = \text{hardwareTaskStart} - \text{csvStartRelative}$$
-
-### Timestamp Transformation Formulas
-
-#### A. Transforming `dropTable` events to NIDAQ Hardware Timeline
-To map software timestamps ($\text{event.time}$) onto the NIDAQ hardware clock:
-$$\text{onset\_time} = (\text{event.time} - \text{NIDAQInfo.time}(1)) + \text{timeOffset}$$
-
-Substituting $\text{timeOffset} = \text{hardwareTaskStart} - (\text{dropTable.time}(1) - \text{NIDAQInfo.time}(1))$:
-$$\text{onset\_time} = (\text{event.time} - \text{dropTable.time}(1)) + \text{hardwareTaskStart}$$
-
-#### B. Direct Synchronization Alignment
-When aligning software events to match hardware event plots directly (accounted for pre-arm delay):
-$$\text{onset\_time}_{\text{aligned}} = (\text{event.time} - \text{dropTable.time}(1)) + \text{hardwareTaskStart} + \text{csvStartRelative}$$
-
----
-
-## 2. Event Routing Strategy
-
-In the `functional_reconstruction` pipeline:
-- **Physiological / Physical Stimuli (`touch1`, `touch2`, `shock`):** Sourced directly from raw digital TTL hardware channels (`TTLinfo`). These serve as ground truth.
-- **Secondary / Software-Only Events (`drop`):** Sourced from `dropTable` software logs and mapped to the NIDAQ timeline using $\text{timeOffset}$.
+- Physiological / Physical Stimuli (`touch1`, `touch2`, `shock`): Sourced directly from raw digital TTL hardware channels (`TTLinfo`). These serve as ground truth.
+- Secondary / Software-Only Events (`drop`): Sourced from `dropTable` software logs and mapped to the NIDAQ timeline using `timeOffset`.
 
 ---
 
