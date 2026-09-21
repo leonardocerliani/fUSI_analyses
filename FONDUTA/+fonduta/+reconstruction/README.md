@@ -253,9 +253,10 @@ end
 
 ![](./assets/TTL_Channels.png)
 
-This plots reveals/suggests that
-- Column **1**: Hardware time vector (seconds).
-- Columns **3 & 8**: fUSI frame acquisition triggers (PDI signal).
+This plots shows that
+- Column **1**: Hardware time vector (sec.msec).
+- Column **3**: fUSI frame acquisition triggers (PDI signal).
+- Column **8**: start/stop of the behavioural experiment
 - Columns **2, 5, 6**: Dual handshake pulses around ~97 s marking software launch.
 - Column **7**: Single event marker at ~118 s.
 - Column **10**: Touch sensor 1 (touch1 - shock-paired dispenser).
