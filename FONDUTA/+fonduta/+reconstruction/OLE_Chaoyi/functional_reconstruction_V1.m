@@ -1,4 +1,4 @@
-function PDI = functional_reconstruction(datapath, savepath)
+function PDI = functional_reconstruction_V1(datapath, savepath)
 % FUNCTIONAL_RECONSTRUCTION Converts raw functional ultrasound imaging (fUSI) data to a MAT structure.
 %
 %   PDI = FUNCTIONAL_RECONSTRUCTION(datapath, savepath)
@@ -28,43 +28,27 @@ function PDI = functional_reconstruction(datapath, savepath)
 %       PDI = functional_reconstruction('/path/to/Data_collection/session1');
 %
 %   Version History:
-%        
-%       V2 (this file) : specific parser functions for each paradigm + verification
-%       plot for Droplet
-%
 %       V1 : Updated from Rawdata2MATnew_V0_Chaoyi_MOD.m. Added mandatory datapath check, 
 %            standardized timing alignment to NIDAQ start (t = 0), and added droplet 
 %            stimulation event extraction.
 
-
-    %% Import helper functions - ONLY FOR PACKAGE VERSION
-    import fonduta.reconstruction.*
-
-
-    %% Input Handling and Path Setup
-
-    % Enforce required datapath argument
-    if nargin < 1 || isempty(datapath)
-        error('datapath was not provided. Execution terminated.');
-    end
-
-    % Derive savepath if not provided or left empty
-    if nargin < 2 || isempty(savepath)
-        savepath = strrep(datapath, 'Data_collection', 'Data_analysis');
-    end
+    % % Input Handling and Path Setup
+    % % Enforce required datapath argument
+    % if nargin < 1 || isempty(datapath)
+    %     error('datapath was not provided. Execution terminated.');
+    % end
+    % 
+    % % Derive savepath if not provided or left empty
+    % if nargin < 2 || isempty(savepath)
+    %     savepath = strrep(datapath, 'Data_collection', 'Data_analysis');
+    % end
 
 
-    % FOR TESTING ONLY
     
-    % % ------------ LOCAL DROPLET PARADIGM ----------------
-    % datapath='/Users/leonardo/Dropbox/fUSI/data/fUSIHarmAversion/Data_collection/sub-mockexperiment/ses-999999/run-155150-func'
-    % savepath = strrep(datapath, 'Data_collection', 'Data_analysis');
-    % fprintf('CAREFUL!!! RUNNING TEST DATA %s.\n', datapath);
-
-    % % ------------ LOCAL VISUAL PARADIGM ----------------
-    % datapath='/Users/leonardo/Dropbox/fUSI/data/fUSIMethodsPaper_LC/Data_collection/sub-methods02/ses-231215/run-115047-func'
-    % savepath = strrep(datapath, 'Data_collection', 'Data_analysis');
-    % fprintf('CAREFUL!!! RUNNING TEST DATA %s.\n', datapath);
+    % ------------ LOCAL ----------------
+    datapath='/Users/leonardo/Dropbox/fUSI/data/fUSIHarmAversion/Data_collection/sub-mockexperiment/ses-999999/run-155150-func'
+    savepath = strrep(datapath, 'Data_collection', 'Data_analysis');
+    fprintf('CAREFUL!!! RUNNING TEST DATA %s.\n', datapath);
 
 
     %% Locate FUSI Data Directory
@@ -251,90 +235,73 @@ function PDI = functional_reconstruction(datapath, savepath)
 
 
     %% Read Experiment Event Information
+    %  Each paradigm is in a different code cell
 
-    paradigm = '';
 
-    % DropletStimulation
+
+
+    %% DropletStimulation
     if exist(fullfile(datapath, 'DropletStimulation.csv'), 'file')
-        paradigm = 'DROPLET';
         fprintf('Droplet stimulation found.\n');
-        PDI.stimInfo = parse_DROPLET(datapath, TTLinfo, NIDAQInfo);
+        dropTable = readtable(fullfile(datapath, 'DropletStimulation.csv'));
+        
+        % Initialize structure fields
+        PDI.stimInfo.dropTime   = [];
+        PDI.stimInfo.touch1     = [];
+        PDI.stimInfo.touch2     = [];
+        PDI.stimInfo.shockStart = [];
+        PDI.stimInfo.shockEnd   = [];
+        
+        % -------------------------------------------------------------------
+        % 1. DROP EVENT (No TTL available -> Software CSV only)
+        % -------------------------------------------------------------------
+        dropRows = strcmp(dropTable.event, 'drop');
+        if any(dropRows)
+            PDI.stimInfo.dropTime = dropTable.time(dropRows) - NIDAQInfo.time(1);
+        end
+        
+        % -------------------------------------------------------------------
+        % 2. TOUCH 1 (Hardware TTL: Col 10, Rising Edge)
+        % -------------------------------------------------------------------
+        idx_touch1 = find(diff(TTLinfo(:, 10)) > 0);
+        if ~isempty(idx_touch1)
+            PDI.stimInfo.touch1 = TTLinfo(idx_touch1, 1);
+        else
+            % Fallback to CSV
+            t1Rows = strcmp(dropTable.event, 'touch1');
+            PDI.stimInfo.touch1 = dropTable.time(t1Rows) - NIDAQInfo.time(1);
+        end
+        
+        % -------------------------------------------------------------------
+        % 3. TOUCH 2 (Hardware TTL: Col 11, Rising Edge)
+        % -------------------------------------------------------------------
+        idx_touch2 = find(diff(TTLinfo(:, 11)) > 0);
+        if ~isempty(idx_touch2)
+            PDI.stimInfo.touch2 = TTLinfo(idx_touch2, 1);
+        else
+            % Fallback to CSV
+            t2Rows = strcmp(dropTable.event, 'touch2');
+            PDI.stimInfo.touch2 = dropTable.time(t2Rows) - NIDAQInfo.time(1);
+        end
+        
+        % -------------------------------------------------------------------
+        % 4. SHOCK (Hardware TTL: Col 12, Active-Low -> Falling = Start, Rising = End)
+        % -------------------------------------------------------------------
+        idx_shockStart = find(diff(TTLinfo(:, 12)) < 0);
+        idx_shockEnd   = find(diff(TTLinfo(:, 12)) > 0);
+        
+        if ~isempty(idx_shockStart) && ~isempty(idx_shockEnd)
+            PDI.stimInfo.shockStart = TTLinfo(idx_shockStart, 1);
+            PDI.stimInfo.shockEnd   = TTLinfo(idx_shockEnd, 1);
+        else
+            % Fallback to CSV
+            shockRows = strcmp(dropTable.event, 'shock');
+            PDI.stimInfo.shockStart = dropTable.time(shockRows) - NIDAQInfo.time(1);
+            % Note: If CSV does not record shock duration, shockEnd falls back to start times
+            PDI.stimInfo.shockEnd   = PDI.stimInfo.shockStart;
+        end
     end
 
-
-    % FUStimulation (focused ultrasound)
-    if exist(fullfile(datapath, 'FUStimulation.csv'), 'file')
-        paradigm = 'FUStimulation';
-        fprintf('FUS stimulation found.\n');
-        PDI.stimInfo = parse_FUStimulation(datapath, TTLinfo);
-    end
-
-
-    % ShockStimulation
-    if exist(fullfile(datapath, 'ShockStimulation.csv'), 'file')
-        paradigm = 'ShockStimulation';
-        fprintf('Shock stimulation found.\n');
-        PDI.stimInfo = parse_ShockStimulation(datapath, TTLinfo);
-    end
-
-
-    % VisualStimulation
-    if exist(fullfile(datapath, 'VisualStimulation.csv'), 'file')
-        paradigm = 'VisualStimulation';
-        fprintf('Visual stimulation found.\n');
-        PDI.stimInfo = parse_VisualStimulation(datapath, TTLinfo, NIDAQInfo);
-    end
-
-
-    % AudioStimulation
-    if exist(fullfile(datapath, 'AudioStimulation.csv'), 'file')
-        paradigm = 'AudioStimulation';
-        fprintf('Auditory stimulation found.\n');
-        PDI.stimInfo = parse_AudioStimulation(datapath, TTLinfo, NIDAQInfo);
-    end
-
-
-    %% BEHAVIOURAL MEASUREMENTS
-
-    % Pupil Camera Data
-    if exist(fullfile(datapath, 'pupil_camera.csv'), 'file')
-        fprintf('Loading pupil camera timestamp from pupil_camera.csv.\n');
-        pupilCamData = readmatrix(fullfile(datapath, 'pupil_camera.csv'));
-        pupilCamTime = pupilCamData(:,1) - NIDAQInfo.time(1);
-    else
-        pupilCamTime = [];
-        warning('No video timestamp of flir_camera found!');
-    end
-
-
-    % Running Wheel Data
-    if exist(fullfile(datapath, 'RunningWheel.csv'), 'file')
-        fprintf('Running wheel data found.\n');
-        wheelInfo = readtable(fullfile(datapath, 'RunningWheel.csv'));
-        wheelInfo.time = wheelInfo.time - NIDAQInfo.time(1);
-        % Uncomment below to compute wheel speed aligned with PDI time
-        % wheelSpeed = interp1(wheelInfo.time, abs(wheelInfo.wheelspeed), PDItime, 'nearest', 'extrap');
-    else
-        wheelInfo = [];
-        warning('No running wheel data found!');
-    end
-
-
-    % GSensor Data
-    if exist(fullfile(datapath, 'GSensor.csv'), 'file')
-        fprintf('G sensor data found.\n');
-        gsensorInfo = readtable(fullfile(datapath, 'GSensor.csv'));
-        gsensorInfo.time = gsensorInfo.time - NIDAQInfo.time(1);
-        % Uncomment below to compute motion aligned with PDI time
-        % gmotion.x = interp1(gsensorInfo.time, abs(gsensorInfo.x), PDItime, 'nearest', 'extrap');
-        % gmotion.y = interp1(gsensorInfo.time, abs(gsensorInfo.y), PDItime, 'nearest', 'extrap');
-        % gmotion.z = interp1(gsensorInfo.time, abs(gsensorInfo.z), PDItime, 'nearest', 'extrap');
-    else
-        gsensorInfo = [];
-        warning('No GSensor data found!');
-    end
-
-    
 
 
     %% Assign Data to PDI Structure
@@ -363,18 +330,5 @@ function PDI = functional_reconstruction(datapath, savepath)
 
     % Uncomment below to save in MATLAB v7 format for compatibility with scipy.io.loadmat
     % save(fullfile(savepath, 'pyPDI.mat'), '-struct', 'PDI', '-v7');
-
-    %% Verification plot
-
-    switch paradigm
-        case 'DROPLET'
-            verify_DROPLET(savepath);
-
-        case 'VisualStimulation'
-            fprintf('verification plot not available for %s\n', paradigm);
-    
-        case {'FUStimulation', 'ShockStimulation', 'AudioStimulation'}
-            fprintf('verification plot not available for %s\n', paradigm);    
-    end
 
 end
