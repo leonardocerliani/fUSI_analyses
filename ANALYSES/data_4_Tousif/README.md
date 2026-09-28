@@ -145,35 +145,21 @@ clean_fusi_data(fullfile(pwd, 'SS_dataset.mat'));
 
 1. **Design Matrix Construction**: Assembles the design matrix:
 
-   $$
-   X = [\mathbf{1}, X_{\mathrm{stim\_hrf}}, X_{\mathrm{Running}}, X_{\mathrm{ConvRunning}}]
-   $$
+$$X = [\mathbf{1}, X_{\mathrm{stim\_hrf}}, X_{\mathrm{Running}}, X_{\mathrm{ConvRunning}}]$$
 
 2. **Baseline Slicing**: Excludes active stimulus frames (`sum(stim, 2) > 0`) when estimating regression weights ($\beta$). Estimating running parameters strictly on non-stimulus frames prevents stimulus-evoked neural responses from distorting locomotion coefficients.
 
 3. **Vectorized Fitting**: Computes beta weights in a single matrix division step across all 509 regions simultaneously:
 
-   $$
-   \beta = X_{\mathrm{baseline}} \backslash Y_{\mathrm{baseline}}
-   $$
+$$\beta = X_{\mathrm{baseline}} \backslash Y_{\mathrm{baseline}}$$
 
 4. **Targeted Partialling Out**: Reconstructs locomotion signal contributions across the full time course:
 
-   $$
-   \hat{Y}_{\mathrm{running}}
-   =
-   \beta_{\mathrm{Running}} X_{\mathrm{Running}}
-   +
-   \beta_{\mathrm{ConvRunning}} X_{\mathrm{ConvRunning}}
-   $$
+$$\hat{Y}_{\mathrm{running}}=\beta_{\mathrm{Running}} X_{\mathrm{Running}}+\beta_{\mathrm{ConvRunning}} X_{\mathrm{ConvRunning}}$$
 
-   and subtracts $\hat{Y}_{\mathrm{running}}$ from raw $Y$, saving the cleaned result directly into the `fUSI_clean` field of the dataset file:
+and subtracts $\hat{Y}_{\mathrm{running}}$ from raw $Y$, saving the cleaned result directly into the `fUSI_clean` field of the dataset file:
 
-   $$
-   Y_{\mathrm{clean}}
-   =
-   Y - \hat{Y}_{\mathrm{running}}
-   $$
+$$Y_{\mathrm{clean}}=Y - \hat{Y}_{\mathrm{running}}$$
 
 
 
