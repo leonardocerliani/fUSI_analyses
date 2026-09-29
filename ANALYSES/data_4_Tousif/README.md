@@ -1,16 +1,23 @@
-# Data for Tousif project
+# Peristimulus data preparation for Tousif project
 
+_LC 2026-09-29_
+ 
 In the dyads folder `/data06/fUSIEmotionalContagion/Data_analysis` there are data from three experiments related to emotional contagion:
 
 - **SO** : shock observation
 - **FR** : fear recall
 - **SS** : self shock
 
-The aim is to retrieve the peristimulus signal for each of the 500+ region of the allen brain atlas.
+The aim is to retrieve the peristimulus signal for each of the 500+ regions of the allen brain atlas.
 
-Root of the analysis code is `/data08/fUSI/fUSI-Analysis/AnalysisFcn`.
+Root of the analysis code prepared by Chaoyi is `/data08/fUSI/fUSI-Analysis/AnalysisFcn`, therefore it might be necessary to add the path before any other operation
+
+```matlab
+addpath(genpath('/data08/fUSI/fUSI-Analysis/AnalysisFcn'))
+```
 
 We use as reference the code in `[root]/EmotionContagion/GLMEmotionContagion.m` which in turn uses `[root]/Datapath.m` to load the location where the `ROIprepPDI.mat` has been saved. This dataset has average (likely `mean`) time course for each allen region.
+
 
 ## Understanding data structure and code for model construction
 After loading the data for one sub, we see that
@@ -42,11 +49,12 @@ After loading the data for one sub, we see that
     {'shockOBS'}
 ```
 
-Importantly, the onset and offset time are **not** relative to the beginning of the fUSI acquisition, so t = 0 sec does **not** mark the start of the fUSI acquisition. Instead all the timings reflect the sec.msec from **start of the experiment** (i.e. the time in the first row of the `NIDAQ.csv` or equivalently the first rising edge in channel 5 or 6 of the `TTL*.csv` relative to that experiment). This is the case also for the timing of the fUSI acquisitions:
+> [!IMPORTANT]
+> **Importantly, the onset and offset time are _not_ relative to the beginning of the fUSI acquisition, so t = 0 sec does _not_ mark the start of the fUSI acquisition. Instead all the timings reflect the sec.msec from start of the experiment** (i.e. the time in the first row of the `NIDAQ.csv` or equivalently the first rising edge in channel 5 or 6 of the `TTL*.csv` relative to that experiment). This is the case also for the timing of the fUSI acquisitions:
 
 ```
 >> length(PDI.time)
-9289
+9289 <- number of fusi frames in this acquisition
 
 >> size(PDI.PDI)
 509        9289
@@ -64,7 +72,7 @@ Importantly, the onset and offset time are **not** relative to the beginning of 
    10.5384
 ```
 
-In order to map the timing of the offset onto a specific fUSI frame, the following code is used
+In order to map the timing of the offset onto a specific fUSI frame, the following code is used, which maps each onset/offset onto the temporally closest fusi frame
 
 ```matlab
 [~, onsetFrame] = arrayfun(@(x) min(abs(x - PDI.time)), PDI.stimInfo.startTime);
@@ -72,24 +80,27 @@ In order to map the timing of the offset onto a specific fUSI frame, the followi
 ```
 
 
-
 ## Generating Model Predictors in Units of fUSI Frames
-The script `extract_data_tousif.m` (not a function, therefore to be evaluated cell by cell) extracts the information for isolating the peristimulus time course across all three paradigms: SO, FR, SS.
+The script `prepare_dataset_4_extraction.m` (not a function, therefore to be evaluated cell by cell) prepares the dataset for easily extracting afterwards (in `extract_peristimulus_dataset[_percent].m`) the peristimulus time course across the three paradigms: SO, FR, SS.
+
 
 ### Structure Metadata & Spatial Alignment
-Compared to the raw saved structs, we appended structured metadata including subject/session identifiers (`subjectID`) and original directory paths. Reference information from the Allen Brain Atlas is embedded in `metadata.atlasInfo`: each of the **509 rows** in the `fUSI` and `fUSI_clean` matrices ($509 \times N_{\text{frames}}$) corresponds to a specific anatomical region index.
+Compared to the raw saved structs, we appended structured metadata including subject/session identifiers (`subjectID`) and original directory paths. Reference information from the Allen Brain Atlas is embedded in `metadata.atlasInfo`: each of the **509 rows** in the `fUSI` and `fUSI_clean` matrices ($509 \times N_{frames}$) corresponds to a specific anatomical region index.
+
 
 ### Frame-Aligned Predictors & Clock Mapping
-To eliminate synchronization ambiguity when constructing design matrices or epoching trials, all stimulus events are mapped directly onto the fUSI frame clock (`fUSI_time`):
-* **`mask`**: A binary logical array (`[1 x nFusiFrames]`) indicating active stimulus frames.
+To eliminate synchronization ambiguity when constructing design matrices, all stimuli events are mapped directly onto fusi frames:
+* **`mask`**: A binary logical array (`[1 x nFusiFrames]`) which is 1 when the stimulus is active and 0 otherwise -  this is basically the predictor vector (before canonical hrf convolution, if necessary) for the glm.
 * **`onsetFrames` & `offsetFrames`**: Frame indices for extracting peri-stimulus windows within designated frame margins before/after event onsets.
 * **`samplingRate` & `dt`**: Frame rate specifications ($\sim 5\text{ Hz}$, calculated via `mode(diff(fUSI_time))`) to convert frame indices into physical time units.
+
+Evaluating the cells in `prepare_dataset_4_extraction.m` generates these struct, which is saved as e.g. `SO_dataset.mat`.
 
 ```
 SO / FR / SS Dataset Hierarchy
 ├── metadata
 │   ├── condition        : 'SO' | 'FR' | 'SS'
-│   └── atlasInfo        : struct (atlas.infoRegions: acronym, name, rgb, volume)
+│   └── atlasInfo        : struct (atlas.infoRegions: acronym, name, rgb values, volume)
 │
 └── sessions (Cell Array {nSubjects x 1})
     └── {isub} (struct)
@@ -124,24 +135,10 @@ Once extracted for all three paradigms, each `[paradigm]_dataset.mat` file conta
 | **FR** (Fear Recall) | `FearRecall` (parsed condition) | `Running` (raw speed), `ConvRunning` (HRF-convolved speed) |
 | **SS** (Social Shock) | `Zero`, `Low`, `High` (intensity-based) | `Running` (raw speed), `ConvRunning` (HRF-convolved speed) |
 
----
 
-## Vectorized Confound Removal Pipeline
+## Wheel motion regression
 
-While raw time-series (`fUSI`) contain preprocessed regional signal averages, locomotion artifacts significantly corrupt hemodynamics. The function `clean_fusi_data.m` fits an Ordinary Least Squares (OLS) GLM to remove running-induced signals across all 509 ROIs simultaneously.
-
-### Execution
-```matlab
-% Run vectorized confound regression on dataset
-clean_fusi_data(fullfile(pwd, 'SO_dataset.mat'));
-clean_fusi_data(fullfile(pwd, 'FR_dataset.mat'));
-clean_fusi_data(fullfile(pwd, 'SS_dataset.mat'));
-```
-
-
-### Model construction and data cleaning
-
-### Model construction and data cleaning
+While raw time-series (`fUSI`) contain preprocessed regional signal averages, locomotion artifacts significantly corrupt hemodynamics. The function `clean_fusi_data.m` fits an Ordinary Least Squares (OLS) GLM to remove running-induced signals across all 509 ROIs simultaneously (i.e. taking advantaged of `X\Y` vectorization in Matlab).
 
 1. **Design Matrix Construction**: Assembles the design matrix:
 
@@ -161,6 +158,17 @@ and subtracts $\hat{Y}_{\mathrm{running}}$ from raw $Y$, saving the cleaned resu
 
 $$Y_{\mathrm{clean}}=Y - \hat{Y}_{\mathrm{running}}$$
 
+All this is carried out by:
+
+```matlab
+% Run vectorized confound regression on dataset
+clean_fusi_data(fullfile(pwd, 'SO_dataset.mat'));
+clean_fusi_data(fullfile(pwd, 'FR_dataset.mat'));
+clean_fusi_data(fullfile(pwd, 'SS_dataset.mat'));
+```
+
+This creates a new field `[paradigm].sessions{isub}.fUSI_clean` (509-by-nFusiFrames array).
+
 
 
 ## Diagnostic Plotting & Quality Check
@@ -175,7 +183,9 @@ plot_fusi_onsets('SO_dataset.mat', 5, 'fUSI');
 plot_fusi_onsets('SO_dataset.mat', 5, 'fUSI_clean');
 ```
 
-documentation_psth_section = """
+(Turns out this plot is not very informative, I thought it would have been more clear to spot artifacts before and after cleaning.)
+
+
 ## Generating the Dataset of Peristimulus Time Courses
 
 Now we can extract the peristimulus signals for each experiment and each condition using `extract_peristimulus_dataset.m`:
@@ -267,10 +277,47 @@ grid on;
 
 ![](./assets/onesub_mean_hrf_across_trial.png)
 
+### Example 3: Peristimulus time course across trials across subjects for one ROI
+
+> [!NOTE]
+> Not all subjects have signal in all ROIs
+
+```matlab
+%% View the peristimulus time course for on region across subjects
+
+data = load('SO_peristimulus_dataset.mat');
+psthStruct = data.SO_peristimulus;
+
+nsubs = length(psthStruct.sessions);
+
+roiIdx = 94; % Specific Allen ROI index
+roiName = psthStruct.metadata.atlasInfo.name(roiIdx);
+ic = 1;     % Condition index ('shockCTL')
+
+figure
+nrows = 5
+tiledlayout(nrows,ceil(nsubs/nrows), 'TileSpacing','compact', 'Padding','compact')
+
+for isub=1:nsubs
+    
+    nexttile
+    tc = squeeze(psthStruct.sessions{isub}.periSignal(ic).signal(roiIdx, :,:)); 
+    imagesc(tc');
+    title(sprintf('sub %d',isub))
+    xlabel('fusi frames')
+    ylabel('trials')
+    
+end
+
+sgtitle(roiName)
+```
+
+![](./assets/peristimulus_across_trials.png)
+
 
 ---
 
-### Example 3: Aggregating Grand-Average Responses Across All Subjects
+### Example 4: Mean response Across All Subjects for one ROI across conditions
 
 To compute and plot grand-average PSTH curves across all animals for every condition in an experiment:
 
